@@ -1,4 +1,7 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001").replace(
+  /\/+$/,
+  "",
+);
 const TOKEN_KEY = "mimanada_token";
 
 export type AuthUser = {
@@ -6,8 +9,12 @@ export type AuthUser = {
   email: string;
   fullName: string;
   phone: string | null;
+  age: number | null;
   userType: "persona" | "fundacion" | "proveedor";
   emailConfirmed: boolean;
+  state: string | null;
+  municipality: string | null;
+  addressLine: string | null;
 };
 
 export type AuthResponse = {
@@ -105,6 +112,30 @@ export async function registerRequest(input: {
 
 export async function getMe(): Promise<AuthUser> {
   return apiFetch<AuthUser>("/auth/me");
+}
+
+export async function updateMe(input: {
+  fullName?: string;
+  phone?: string;
+  age?: number;
+  state?: string;
+  municipality?: string;
+  addressLine?: string;
+}): Promise<AuthUser> {
+  return apiFetch<AuthUser>("/auth/me", {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function changePasswordRequest(input: {
+  currentPassword: string;
+  newPassword: string;
+}): Promise<{ ok: boolean }> {
+  return apiFetch<{ ok: boolean }>("/auth/change-password", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
 }
 
 export async function getHealth(): Promise<{ status: string }> {

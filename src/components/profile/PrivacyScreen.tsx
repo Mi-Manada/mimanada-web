@@ -33,8 +33,7 @@ export function PrivacyScreen() {
             Tu control
           </h2>
           <ul className="mt-2 list-disc space-y-1.5 pl-5 text-[0.85rem] leading-relaxed text-[var(--color-text-muted)]">
-            <li>Puedes editar tus datos personales desde Mis datos.</li>
-            <li>Puedes actualizar tu domicilio en Direcciones.</li>
+            <li>Puedes editar tus datos y domicilio desde Mis datos.</li>
             <li>Puedes cambiar tu contraseña en Seguridad.</li>
           </ul>
         </article>

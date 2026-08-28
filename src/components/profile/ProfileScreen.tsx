@@ -4,9 +4,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { AppChrome } from "@/components/app/AppChrome";
+import { ProfileActivationBanner } from "@/components/profile/ProfileActivationBanner";
 import { ProfileMenuIcon } from "@/components/profile/ProfilePageShell";
 import { Button } from "@/components/ui/Button";
-import { clearSession, getMe, type AuthUser } from "@/lib/api";
+import { clearSession, getMe, mediaUrl, type AuthUser } from "@/lib/api";
 
 type MenuItem = {
   title: string;
@@ -26,7 +27,7 @@ const menuSections: MenuSection[] = [
     items: [
       {
         title: "Mis datos",
-        description: "Gestionar tus datos personales",
+        description: "Perfil, contacto y domicilio",
         href: "/perfil/datos",
         icon: (
           <ProfileMenuIcon>
@@ -36,6 +37,33 @@ const menuSections: MenuSection[] = [
                 d="M5.2 19c1.5-3 4-4.7 6.8-4.7S17.3 16 18.8 19"
                 stroke="currentColor"
                 strokeWidth="1.8"
+                strokeLinecap="round"
+              />
+            </svg>
+          </ProfileMenuIcon>
+        ),
+      },
+      {
+        title: "Verificación",
+        description: "Foto de perfil, cédula y selfie",
+        href: "/perfil/verificacion",
+        icon: (
+          <ProfileMenuIcon>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <rect
+                x="4"
+                y="5"
+                width="16"
+                height="14"
+                rx="2"
+                stroke="currentColor"
+                strokeWidth="1.8"
+              />
+              <circle cx="12" cy="11" r="2.6" stroke="currentColor" strokeWidth="1.7" />
+              <path
+                d="M7.5 16.5c1-1.6 2.5-2.4 4.5-2.4s3.5.8 4.5 2.4"
+                stroke="currentColor"
+                strokeWidth="1.7"
                 strokeLinecap="round"
               />
             </svg>
@@ -64,24 +92,6 @@ const menuSections: MenuSection[] = [
                 strokeWidth="1.8"
                 strokeLinecap="round"
               />
-            </svg>
-          </ProfileMenuIcon>
-        ),
-      },
-      {
-        title: "Direcciones",
-        description: "Tu domicilio para adopciones cercanas",
-        href: "/perfil/direcciones",
-        icon: (
-          <ProfileMenuIcon>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-              <path
-                d="M12 21s-6-5.1-6-10a6 6 0 1 1 12 0c0 4.9-6 10-6 10Z"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinejoin="round"
-              />
-              <circle cx="12" cy="11" r="2.2" stroke="currentColor" strokeWidth="1.8" />
             </svg>
           </ProfileMenuIcon>
         ),
@@ -135,7 +145,7 @@ const menuSections: MenuSection[] = [
       {
         title: "Solicitudes",
         description: "Solicitudes enviadas o recibidas",
-        href: "/perfil/adopciones/solicitudes",
+        href: "/adopta/solicitudes",
         icon: (
           <ProfileMenuIcon>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
@@ -152,7 +162,7 @@ const menuSections: MenuSection[] = [
       {
         title: "Puestos en adopción",
         description: "Casos que has publicado",
-        href: "/perfil/adopciones/puestos",
+        href: "/adopta/puestos",
         icon: (
           <ProfileMenuIcon>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
@@ -227,7 +237,7 @@ export function ProfileScreen() {
             aria-hidden
           />
 
-          <div className="relative z-10 mx-auto w-full max-w-[40rem]">
+          <div className="relative z-10 mx-auto w-full max-w-[80rem]">
             <div className="mb-6 flex items-center gap-2 lg:mb-8">
               <Link
                 href="/home"
@@ -249,7 +259,16 @@ export function ProfileScreen() {
 
             <div className="flex items-center gap-4">
               <div className="flex h-[4.25rem] w-[4.25rem] shrink-0 items-center justify-center overflow-hidden rounded-full border-[3px] border-white bg-white/20 text-[1.15rem] [font-weight:700] sm:h-[4.75rem] sm:w-[4.75rem]">
-                {initialsFromName(displayName)}
+                {mediaUrl(user?.profilePhotoUrl) ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={mediaUrl(user?.profilePhotoUrl) ?? undefined}
+                    alt={displayName}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  initialsFromName(displayName)
+                )}
               </div>
               <div className="min-w-0">
                 <p className="text-[clamp(1.35rem,2.5vw,1.75rem)] leading-tight [font-weight:700]">
@@ -261,14 +280,14 @@ export function ProfileScreen() {
                 {user ? (
                   <p
                     className={`mt-1.5 inline-flex rounded-full px-2.5 py-0.5 text-[0.7rem] [font-weight:600] ${
-                      user.emailConfirmed
+                      user.profileActivated
                         ? "bg-white/20 text-white"
                         : "bg-[var(--color-accent-yellow)] text-[var(--color-primary)]"
                     }`}
                   >
-                    {user.emailConfirmed
-                      ? "Correo verificado"
-                      : "Correo pendiente de verificar"}
+                    {user.profileActivated
+                      ? "Perfil activo"
+                      : "Perfil pendiente de activar"}
                   </p>
                 ) : null}
               </div>
@@ -276,14 +295,17 @@ export function ProfileScreen() {
           </div>
         </header>
 
-        <section className="relative z-10 mx-auto w-full max-w-[40rem] flex-1 px-4 pb-8 pt-5 sm:px-6 lg:px-8 lg:pt-7">
+        <section className="relative z-10 mx-auto w-full max-w-[80rem] flex-1 px-4 pb-8 pt-5 sm:px-6 lg:px-8 lg:pt-7">
+          <div className="mb-5">
+            <ProfileActivationBanner />
+          </div>
           <div className="flex flex-col gap-6">
             {menuSections.map((section) => (
               <div key={section.title}>
                 <h2 className="mb-2.5 px-1 text-[0.75rem] tracking-[0.08em] text-[var(--color-text-muted)] uppercase [font-weight:700]">
                   {section.title}
                 </h2>
-                <ul className="flex flex-col gap-2.5">
+                <ul className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
                   {section.items.map((item) => (
                     <li key={item.title}>
                       <Link

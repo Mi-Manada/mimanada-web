@@ -1,5 +1,5 @@
-import { PostedAdoptionsScreen } from "@/components/profile/PostedAdoptionsScreen";
+import { redirect } from "next/navigation";
 
-export default function PuestosPage() {
-  return <PostedAdoptionsScreen />;
+export default function LegacyPuestosPage() {
+  redirect("/adopta/puestos");
 }

@@ -28,7 +28,7 @@ export function ProfilePageShell({
             }}
             aria-hidden
           />
-          <div className="relative z-10 mx-auto flex w-full max-w-[40rem] items-center justify-between gap-3">
+          <div className="relative z-10 mx-auto flex w-full max-w-[80rem] items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <Link
                 href={backHref}
@@ -50,7 +50,7 @@ export function ProfilePageShell({
             {action ?? null}
           </div>
         </header>
-        <section className="mx-auto w-full max-w-[40rem] flex-1 px-4 py-6 sm:px-6 lg:px-8">
+        <section className="mx-auto w-full max-w-[80rem] flex-1 px-4 py-6 sm:px-6 lg:px-8">
           {children}
         </section>
       </main>

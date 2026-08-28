@@ -32,7 +32,9 @@ function useIsDesktop() {
 export function AuthSplitShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const isDesktop = useIsDesktop();
-  const isConfirm = pathname.startsWith("/registro/confirmar");
+  const isConfirm =
+    pathname.startsWith("/registro/confirmar") ||
+    pathname.startsWith("/registro/activar");
   const brandOnLeft = !pathname.startsWith("/registro");
 
   const pathRef = useRef(pathname);

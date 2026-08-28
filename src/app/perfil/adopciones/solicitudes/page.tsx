@@ -1,5 +1,5 @@
-import { AdoptionRequestsScreen } from "@/components/profile/AdoptionRequestsScreen";
+import { redirect } from "next/navigation";
 
-export default function SolicitudesPage() {
-  return <AdoptionRequestsScreen />;
+export default function LegacySolicitudesPage() {
+  redirect("/adopta/solicitudes");
 }

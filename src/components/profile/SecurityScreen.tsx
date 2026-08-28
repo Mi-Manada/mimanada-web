@@ -110,7 +110,7 @@ export function SecurityScreen() {
             }}
             aria-hidden
           />
-          <div className="relative z-10 mx-auto flex w-full max-w-[40rem] items-center gap-2">
+          <div className="relative z-10 mx-auto flex w-full max-w-[80rem] items-center gap-2">
             <Link
               href="/perfil"
               aria-label="Volver al perfil"
@@ -130,7 +130,7 @@ export function SecurityScreen() {
           </div>
         </header>
 
-        <section className="mx-auto w-full max-w-[40rem] flex-1 px-4 py-6 sm:px-6 lg:px-8">
+        <section className="mx-auto w-full max-w-[80rem] flex-1 px-4 py-6 sm:px-6 lg:px-8">
           {loading ? (
             <p className="text-[0.9rem] text-[var(--color-text-muted)]">Cargando...</p>
           ) : null}

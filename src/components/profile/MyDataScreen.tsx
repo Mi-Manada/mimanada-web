@@ -26,6 +26,11 @@ type Draft = {
   lastName: string;
   age: string;
   phone: string;
+  state: string;
+  municipality: string;
+  addressLine: string;
+  latitude: number | null;
+  longitude: number | null;
 };
 
 function toDraft(user: AuthUser): Draft {
@@ -35,7 +40,55 @@ function toDraft(user: AuthUser): Draft {
     lastName,
     age: user.age != null ? String(user.age) : "",
     phone: user.phone ?? "",
+    state: user.state ?? "",
+    municipality: user.municipality ?? "",
+    addressLine: user.addressLine ?? "",
+    latitude: user.latitude ?? null,
+    longitude: user.longitude ?? null,
   };
+}
+
+type NominatimAddress = {
+  state?: string;
+  region?: string;
+  city?: string;
+  town?: string;
+  village?: string;
+  municipality?: string;
+  county?: string;
+  road?: string;
+  pedestrian?: string;
+  house_number?: string;
+  suburb?: string;
+};
+
+async function reverseGeocode(lat: number, lon: number) {
+  const url = new URL("https://nominatim.openstreetmap.org/reverse");
+  url.searchParams.set("format", "json");
+  url.searchParams.set("lat", String(lat));
+  url.searchParams.set("lon", String(lon));
+  url.searchParams.set("zoom", "18");
+  url.searchParams.set("addressdetails", "1");
+
+  const res = await fetch(url.toString(), {
+    headers: {
+      Accept: "application/json",
+      "Accept-Language": "es",
+    },
+  });
+  if (!res.ok) {
+    throw new Error("No se pudo obtener la dirección.");
+  }
+
+  const data = (await res.json()) as { address?: NominatimAddress };
+  const a = data.address ?? {};
+  const state = a.state || a.region || "";
+  const municipality =
+    a.city || a.town || a.village || a.municipality || a.county || "";
+  const street = a.road || a.pedestrian || a.suburb || "";
+  const addressLine = [a.house_number, street].filter(Boolean).join(" ").trim();
+
+  return { state, municipality, addressLine };
 }
 
 export function MyDataScreen() {
@@ -44,6 +97,7 @@ export function MyDataScreen() {
   const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [locating, setLocating] = useState(false);
   const [error, setError] = useState("");
   const [savedFlash, setSavedFlash] = useState(false);
 
@@ -80,6 +134,59 @@ export function MyDataScreen() {
     setEditing(false);
   }
 
+  async function useCurrentLocation() {
+    if (!navigator.geolocation) {
+      setError("Tu navegador no permite usar la ubicación.");
+      return;
+    }
+
+    setLocating(true);
+    setError("");
+
+    try {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 0,
+        });
+      });
+
+      const { latitude, longitude } = position.coords;
+      const place = await reverseGeocode(latitude, longitude);
+
+      setDraft((prev) =>
+        prev
+          ? {
+              ...prev,
+              state: place.state || prev.state,
+              municipality: place.municipality || prev.municipality,
+              addressLine: place.addressLine || prev.addressLine,
+              latitude,
+              longitude,
+            }
+          : prev,
+      );
+    } catch (err) {
+      const geo = err as GeolocationPositionError | undefined;
+      if (geo?.code === 1) {
+        setError("Necesitamos permiso para usar tu ubicación.");
+      } else if (geo?.code === 2) {
+        setError("No se pudo detectar tu ubicación.");
+      } else if (geo?.code === 3) {
+        setError("La ubicación tardó demasiado. Intenta de nuevo.");
+      } else {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "No se pudo obtener la ubicación actual.",
+        );
+      }
+    } finally {
+      setLocating(false);
+    }
+  }
+
   async function handleSave(event: FormEvent) {
     event.preventDefault();
     if (!draft) return;
@@ -103,6 +210,11 @@ export function MyDataScreen() {
         fullName,
         phone: draft.phone.trim() || undefined,
         age: ageValue,
+        state: draft.state.trim(),
+        municipality: draft.municipality.trim(),
+        addressLine: draft.addressLine.trim(),
+        ...(draft.latitude != null ? { latitude: draft.latitude } : {}),
+        ...(draft.longitude != null ? { longitude: draft.longitude } : {}),
       });
       setUser(updated);
       setDraft(toDraft(updated));
@@ -120,7 +232,7 @@ export function MyDataScreen() {
     }
   }
 
-  const viewRows = user
+  const personalRows = user
     ? [
         { label: "Nombres", value: splitName(user.fullName).firstName || "—" },
         { label: "Apellidos", value: splitName(user.fullName).lastName || "—" },
@@ -133,6 +245,18 @@ export function MyDataScreen() {
         { label: "Contraseña", value: "••••••••" },
       ]
     : [];
+
+  const addressRows = user
+    ? [
+        { label: "Estado", value: user.state || "—" },
+        { label: "Ciudad", value: user.municipality || "—" },
+        { label: "Dirección", value: user.addressLine || "—" },
+      ]
+    : [];
+
+  const hasCoords = Boolean(
+    user && user.latitude != null && user.longitude != null,
+  );
 
   return (
     <AppChrome>
@@ -147,7 +271,7 @@ export function MyDataScreen() {
             }}
             aria-hidden
           />
-          <div className="relative z-10 mx-auto flex w-full max-w-[40rem] items-center justify-between gap-3">
+          <div className="relative z-10 mx-auto flex w-full max-w-[80rem] items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <Link
                 href="/perfil"
@@ -189,19 +313,64 @@ export function MyDataScreen() {
           </div>
         </header>
 
-        <section className="mx-auto w-full max-w-[40rem] flex-1 px-5 py-6 sm:px-8 lg:px-10">
+        <section className="mx-auto w-full max-w-[80rem] flex-1 px-5 py-6 sm:px-8 lg:px-10">
           {loading ? (
             <p className="text-[0.9rem] text-[var(--color-text-muted)]">Cargando...</p>
           ) : null}
 
           {!loading && !editing && user ? (
-            <div className="flex flex-col gap-5">
-              {viewRows.map((row) => (
-                <div key={row.label} className="border-b border-[#f0f0f0] pb-4 last:border-b-0">
-                  <p className="text-[0.8rem] text-[var(--color-text-muted)]">{row.label}</p>
-                  <p className="mt-1 text-[1rem] text-[#5a5a5a] [font-weight:500]">{row.value}</p>
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <section className="overflow-hidden rounded-[14px] border border-[#ececec] bg-white">
+                <div className="border-b border-[#f0f0f0] bg-[#fafafa] px-4 py-2.5">
+                  <h2 className="text-[0.8rem] uppercase tracking-[0.04em] text-[#777] [font-weight:700]">
+                    Datos personales
+                  </h2>
                 </div>
-              ))}
+                <div className="divide-y divide-[#f0f0f0] px-4">
+                  {personalRows.map((row) => (
+                    <div
+                      key={row.label}
+                      className="flex items-baseline justify-between gap-4 py-2.5"
+                    >
+                      <p className="shrink-0 text-[0.8rem] text-[var(--color-text-muted)]">
+                        {row.label}
+                      </p>
+                      <p className="text-right text-[0.9rem] text-[#555] [font-weight:500]">
+                        {row.value}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <section className="overflow-hidden rounded-[14px] border border-[#ececec] bg-white">
+                <div className="border-b border-[#f0f0f0] bg-[#fafafa] px-4 py-2.5">
+                  <h2 className="text-[0.8rem] uppercase tracking-[0.04em] text-[#777] [font-weight:700]">
+                    Domicilio
+                  </h2>
+                  <p className="mt-0.5 text-[0.72rem] text-[var(--color-text-muted)]">
+                    {hasCoords
+                      ? "Con ubicación actual guardada"
+                      : "Sin ubicación actual · Edita para añadirla"}
+                  </p>
+                </div>
+                <div className="divide-y divide-[#f0f0f0] px-4">
+                  {addressRows.map((row) => (
+                    <div
+                      key={row.label}
+                      className="flex items-baseline justify-between gap-4 py-2.5"
+                    >
+                      <p className="shrink-0 text-[0.8rem] text-[var(--color-text-muted)]">
+                        {row.label}
+                      </p>
+                      <p className="text-right text-[0.9rem] text-[#555] [font-weight:500]">
+                        {row.value}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
               {savedFlash ? (
                 <p className="text-[0.85rem] text-[var(--color-primary)] [font-weight:600]">
                   Cambios guardados
@@ -211,7 +380,7 @@ export function MyDataScreen() {
           ) : null}
 
           {!loading && editing && draft && user ? (
-            <form onSubmit={handleSave} className="flex flex-col gap-4">
+            <form onSubmit={handleSave} className="flex flex-col gap-4 lg:max-w-[48rem]">
               <label className="block">
                 <span className="mb-1.5 block text-[0.8rem] text-[var(--color-text-muted)]">
                   Nombres
@@ -289,6 +458,81 @@ export function MyDataScreen() {
                 />
               </label>
 
+              <div className="mt-2 border-t border-[#f0f0f0] pt-4">
+                <div className="mb-3 flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[0.9rem] text-[#555] [font-weight:700]">
+                      Domicilio
+                    </p>
+                    <p className="mt-0.5 text-[0.75rem] text-[var(--color-text-muted)]">
+                      Sirve para mostrar adopciones cercanas.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={useCurrentLocation}
+                    disabled={locating || saving}
+                    className="shrink-0 rounded-full border border-[var(--color-primary)] px-3 py-1.5 text-[0.75rem] text-[var(--color-primary)] transition hover:bg-[var(--color-primary)]/5 disabled:opacity-60 [font-weight:600]"
+                  >
+                    {locating ? "Detectando..." : "Usar ubicación actual"}
+                  </button>
+                </div>
+
+                <label className="mb-4 block">
+                  <span className="mb-1.5 block text-[0.8rem] text-[var(--color-text-muted)]">
+                    Estado
+                  </span>
+                  <input
+                    value={draft.state}
+                    onChange={(e) =>
+                      setDraft((prev) =>
+                        prev ? { ...prev, state: e.target.value } : prev,
+                      )
+                    }
+                    className="h-11 w-full rounded-[10px] border border-[#e8e8e8] bg-[#fafafa] px-3.5 text-[0.95rem] outline-none focus:border-[var(--color-primary)] focus:bg-white"
+                    placeholder="Ej. Miranda"
+                  />
+                </label>
+
+                <label className="mb-4 block">
+                  <span className="mb-1.5 block text-[0.8rem] text-[var(--color-text-muted)]">
+                    Ciudad
+                  </span>
+                  <input
+                    value={draft.municipality}
+                    onChange={(e) =>
+                      setDraft((prev) =>
+                        prev ? { ...prev, municipality: e.target.value } : prev,
+                      )
+                    }
+                    className="h-11 w-full rounded-[10px] border border-[#e8e8e8] bg-[#fafafa] px-3.5 text-[0.95rem] outline-none focus:border-[var(--color-primary)] focus:bg-white"
+                    placeholder="Ej. Caracas"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="mb-1.5 block text-[0.8rem] text-[var(--color-text-muted)]">
+                    Dirección
+                  </span>
+                  <input
+                    value={draft.addressLine}
+                    onChange={(e) =>
+                      setDraft((prev) =>
+                        prev ? { ...prev, addressLine: e.target.value } : prev,
+                      )
+                    }
+                    className="h-11 w-full rounded-[10px] border border-[#e8e8e8] bg-[#fafafa] px-3.5 text-[0.95rem] outline-none focus:border-[var(--color-primary)] focus:bg-white"
+                    placeholder="Calle, urbanización, referencia"
+                  />
+                </label>
+
+                {draft.latitude != null && draft.longitude != null ? (
+                  <p className="mt-2 text-[0.75rem] text-[var(--color-text-muted)]">
+                    Coordenadas listas para guardar.
+                  </p>
+                ) : null}
+              </div>
+
               <div className="block">
                 <span className="mb-1.5 block text-[0.8rem] text-[var(--color-text-muted)]">
                   Contraseña
@@ -317,7 +561,7 @@ export function MyDataScreen() {
                   type="button"
                   variant="ghost"
                   onClick={cancelEdit}
-                  disabled={saving}
+                  disabled={saving || locating}
                   className="h-9 min-w-[6.25rem] border border-[var(--color-primary)] px-4 text-[0.8125rem]"
                 >
                   Cancelar
@@ -325,7 +569,7 @@ export function MyDataScreen() {
                 <Button
                   type="submit"
                   className="h-9 min-w-[8rem] px-4 text-[0.8125rem]"
-                  disabled={saving}
+                  disabled={saving || locating}
                 >
                   {saving ? "Guardando..." : "Guardar cambios"}
                 </Button>

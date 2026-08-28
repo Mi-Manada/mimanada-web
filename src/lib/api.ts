@@ -4,6 +4,12 @@ const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001").rep
 );
 const TOKEN_KEY = "mimanada_token";
 
+export type IdentityStatus =
+  | "incomplete"
+  | "submitted"
+  | "verified"
+  | "rejected";
+
 export type AuthUser = {
   id: string;
   email: string;
@@ -15,6 +21,14 @@ export type AuthUser = {
   state: string | null;
   municipality: string | null;
   addressLine: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  profilePhotoUrl: string | null;
+  idCardPhotoUrl: string | null;
+  selfiePhotoUrl: string | null;
+  identityStatus: IdentityStatus;
+  profileActivated: boolean;
+  documentsComplete: boolean;
 };
 
 export type AuthResponse = {
@@ -29,6 +43,12 @@ export class ApiError extends Error {
     super(message);
     this.status = status;
   }
+}
+
+export function mediaUrl(path: string | null | undefined): string | null {
+  if (!path) return null;
+  if (path.startsWith("http://") || path.startsWith("https://")) return path;
+  return `${API_URL}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
 export function getToken(): string | null {
@@ -52,7 +72,9 @@ export async function apiFetch<T>(
 ): Promise<T> {
   const token = getToken();
   const headers: HeadersInit = {
-    "Content-Type": "application/json",
+    ...(init?.body instanceof FormData
+      ? {}
+      : { "Content-Type": "application/json" }),
     ...init?.headers,
   };
 
@@ -121,10 +143,24 @@ export async function updateMe(input: {
   state?: string;
   municipality?: string;
   addressLine?: string;
+  latitude?: number;
+  longitude?: number;
 }): Promise<AuthUser> {
   return apiFetch<AuthUser>("/auth/me", {
     method: "PATCH",
     body: JSON.stringify(input),
+  });
+}
+
+export async function uploadIdentityPhoto(
+  kind: "profile" | "id_card" | "selfie",
+  file: File,
+): Promise<AuthUser> {
+  const body = new FormData();
+  body.append("file", file);
+  return apiFetch<AuthUser>(`/auth/me/photos/${kind}`, {
+    method: "POST",
+    body,
   });
 }
 
@@ -136,6 +172,124 @@ export async function changePasswordRequest(input: {
     method: "POST",
     body: JSON.stringify(input),
   });
+}
+
+export type PetSpecies = "dog" | "cat";
+export type PetSex = "female" | "male" | "unknown";
+export type PetSize = "small" | "medium" | "large" | "giant" | "unknown";
+export type PetStatus = "published" | "closed";
+export type PetCaseKind = "isolated" | "litter";
+
+export type Pet = {
+  id: string;
+  ownerId: string;
+  name: string;
+  ageYears: number | null;
+  ageMonths: number | null;
+  ageUnknown: boolean;
+  isLitterMother: boolean;
+  species: PetSpecies;
+  sex: PetSex;
+  size: PetSize;
+  breed: string | null;
+  vaccinated: boolean | null;
+  sterilized: boolean | null;
+  dewormed: boolean | null;
+  contactPhone: string | null;
+  city: string | null;
+  municipality: string | null;
+  description: string | null;
+  diseases: string | null;
+  litterGroupId: string | null;
+  caseKind: PetCaseKind;
+  photoUrls: string[];
+  medicalExamUrls: string[];
+  status: PetStatus;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreatePetInput = {
+  name: string;
+  ageYears?: number;
+  ageMonths?: number;
+  ageUnknown?: boolean;
+  isLitterMother?: boolean;
+  species: PetSpecies;
+  sex: PetSex;
+  size: PetSize;
+  breed?: string;
+  vaccinated?: boolean;
+  sterilized?: boolean;
+  dewormed?: boolean;
+  contactPhone: string;
+  city: string;
+  municipality: string;
+  description?: string;
+  diseases?: string;
+  litterGroupId?: string;
+  caseKind?: PetCaseKind;
+  photos: File[];
+  medicalExams?: File[];
+};
+
+export async function createPet(input: CreatePetInput): Promise<Pet> {
+  const body = new FormData();
+  body.append("name", input.name);
+  if (input.ageUnknown) {
+    body.append("ageUnknown", "true");
+  } else {
+    body.append("ageUnknown", "false");
+    if (input.ageMonths != null) {
+      body.append("ageMonths", String(input.ageMonths));
+    } else if (input.ageYears != null) {
+      body.append("ageYears", String(input.ageYears));
+    }
+  }
+  if (input.isLitterMother) body.append("isLitterMother", "true");
+  body.append("species", input.species);
+  body.append("sex", input.sex);
+  body.append("size", input.size);
+  if (input.breed) body.append("breed", input.breed);
+  if (input.vaccinated != null) body.append("vaccinated", String(input.vaccinated));
+  if (input.sterilized != null) body.append("sterilized", String(input.sterilized));
+  if (input.dewormed != null) body.append("dewormed", String(input.dewormed));
+  body.append("contactPhone", input.contactPhone);
+  body.append("city", input.city);
+  body.append("municipality", input.municipality);
+  if (input.description) body.append("description", input.description);
+  if (input.diseases) body.append("diseases", input.diseases);
+  if (input.litterGroupId) body.append("litterGroupId", input.litterGroupId);
+  if (input.caseKind) body.append("caseKind", input.caseKind);
+  for (const photo of input.photos) {
+    body.append("photos", photo);
+  }
+  for (const exam of input.medicalExams ?? []) {
+    body.append("medicalExams", exam);
+  }
+  return apiFetch<Pet>("/pets", { method: "POST", body });
+}
+
+export async function getMyPets(): Promise<Pet[]> {
+  return apiFetch<Pet[]>("/pets/mine");
+}
+
+export async function deletePet(id: string): Promise<{ ok: true }> {
+  return apiFetch<{ ok: true }>(`/pets/${id}`, { method: "DELETE" });
+}
+
+export async function updatePetStatus(
+  id: string,
+  status: PetStatus,
+): Promise<Pet> {
+  return apiFetch<Pet>(`/pets/${id}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
+}
+
+export async function getPublishedPets(): Promise<Pet[]> {
+  return apiFetch<Pet[]>("/pets");
 }
 
 export async function getHealth(): Promise<{ status: string }> {

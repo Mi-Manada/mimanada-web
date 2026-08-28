@@ -9,6 +9,15 @@ Frontend de MiManada con Next.js (App Router), TypeScript y Tailwind CSS.
 
 ## Setup
 
+Desde la raíz del monorepo (`MiManada`):
+
+```bash
+npm run setup   # primera vez
+npm run dev     # DB + API + Web
+```
+
+O solo este frontend:
+
 ```bash
 cp .env.example .env.local
 npm install

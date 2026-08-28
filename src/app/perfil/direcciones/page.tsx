@@ -1,5 +1,5 @@
-import { AddressesScreen } from "@/components/profile/AddressesScreen";
+import { redirect } from "next/navigation";
 
 export default function DireccionesPage() {
-  return <AddressesScreen />;
+  redirect("/perfil/datos");
 }

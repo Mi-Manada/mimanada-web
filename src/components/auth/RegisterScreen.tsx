@@ -126,7 +126,7 @@ export function RegisterScreen() {
 
   function handleCloseSuccess() {
     setSuccessOpen(false);
-    router.push("/registro/confirmar");
+    router.push("/registro/activar");
   }
 
   return (

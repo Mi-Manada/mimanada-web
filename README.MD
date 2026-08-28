@@ -37,4 +37,4 @@ La app corre en [http://localhost:3000](http://localhost:3000).
 - `npm run dev` — desarrollo
 - `npm run build` — build de producción
 - `npm run start` — servir build
-- `npm run lint` — ESLint
+- `npm run lint` — ESLint 

@@ -22,6 +22,10 @@ import {
 import { Button } from "@/components/ui/Button";
 import { ImageCropModal } from "@/components/ui/ImageCropModal";
 import {
+  ImageSourceSheet,
+  prefersMobileImagePicker,
+} from "@/components/ui/ImageSourceSheet";
+import {
   ApiError,
   createPet,
   getMe,
@@ -201,6 +205,7 @@ export function CreatePetScreen({
   const [medicalExams, setMedicalExams] = useState<ExamSlot[]>([]);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
   const [cropFileName, setCropFileName] = useState("mascota.jpg");
+  const [photoSourceOpen, setPhotoSourceOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [errorField, setErrorField] = useState<string | null>(null);
@@ -315,6 +320,10 @@ export function CreatePetScreen({
 
   function openPhotoPicker(slot: number) {
     cropSlotRef.current = slot;
+    if (prefersMobileImagePicker()) {
+      setPhotoSourceOpen(true);
+      return;
+    }
     fileInputRef.current?.click();
   }
 
@@ -1298,6 +1307,14 @@ export function CreatePetScreen({
             onConfirm={onCropConfirm}
           />
         ) : null}
+
+        <ImageSourceSheet
+          open={photoSourceOpen}
+          onClose={() => setPhotoSourceOpen(false)}
+          onFile={(file) => onFilePicked(file)}
+          title="Foto de la mascota"
+          captureFacing="environment"
+        />
       </main>
     </AppChrome>
   );

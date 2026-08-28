@@ -5,6 +5,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { ImageCropModal } from "@/components/ui/ImageCropModal";
 import {
+  ImageSourceSheet,
+  prefersMobileImagePicker,
+} from "@/components/ui/ImageSourceSheet";
+import {
   ApiError,
   getMe,
   mediaUrl,
@@ -60,6 +64,7 @@ export function ActivationOnboardingScreen({
   const [preview, setPreview] = useState<string | null>(null);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
   const [cropFileName, setCropFileName] = useState("foto.jpg");
+  const [photoSourceOpen, setPhotoSourceOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const step = STEPS[stepIndex];
@@ -130,6 +135,15 @@ export function ActivationOnboardingScreen({
     } finally {
       setUploading(false);
     }
+  }
+
+  function openPhotoPicker() {
+    if (uploading) return;
+    if (prefersMobileImagePicker()) {
+      setPhotoSourceOpen(true);
+      return;
+    }
+    fileInputRef.current?.click();
   }
 
   function onFilePicked(file: File | null) {
@@ -240,24 +254,26 @@ export function ActivationOnboardingScreen({
               )}
             </div>
 
-            <label className="inline-flex cursor-pointer">
-              <span className="inline-flex h-9 items-center justify-center rounded-[var(--radius-pill)] bg-[var(--color-primary)] px-5 text-[0.8125rem] text-white [font-weight:700] hover:bg-[var(--color-primary-hover)]">
-                {uploading
-                  ? "Subiendo..."
-                  : preview
-                    ? "Cambiar foto"
-                    : "Subir foto"}
-              </span>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                capture={step.kind === "selfie" ? "user" : undefined}
-                className="hidden"
-                disabled={uploading}
-                onChange={(e) => onFilePicked(e.target.files?.[0] ?? null)}
-              />
-            </label>
+            <button
+              type="button"
+              onClick={openPhotoPicker}
+              disabled={uploading}
+              className="inline-flex h-9 cursor-pointer items-center justify-center rounded-[var(--radius-pill)] bg-[var(--color-primary)] px-5 text-[0.8125rem] text-white [font-weight:700] hover:bg-[var(--color-primary-hover)] disabled:opacity-50"
+            >
+              {uploading
+                ? "Subiendo..."
+                : preview
+                  ? "Cambiar foto"
+                  : "Subir foto"}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              disabled={uploading}
+              onChange={(e) => onFilePicked(e.target.files?.[0] ?? null)}
+            />
           </div>
 
           {error ? (
@@ -311,6 +327,14 @@ export function ActivationOnboardingScreen({
           onConfirm={onCropConfirm}
         />
       ) : null}
+
+      <ImageSourceSheet
+        open={photoSourceOpen}
+        onClose={() => setPhotoSourceOpen(false)}
+        onFile={(file) => onFilePicked(file)}
+        title={step.title}
+        captureFacing={step.kind === "selfie" ? "user" : "environment"}
+      />
     </section>
   );
 }

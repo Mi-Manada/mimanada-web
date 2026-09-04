@@ -48,7 +48,12 @@ export class ApiError extends Error {
 export function mediaUrl(path: string | null | undefined): string | null {
   if (!path) return null;
   if (path.startsWith("http://") || path.startsWith("https://")) return path;
-  return `${API_URL}${path.startsWith("/") ? path : `/${path}`}`;
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  // Same-origin for uploads: Vercel/Next rewrite proxies to the API (avoids mixed content).
+  if (normalized.startsWith("/uploads/")) {
+    return normalized;
+  }
+  return `${API_URL}${normalized}`;
 }
 
 export function getToken(): string | null {

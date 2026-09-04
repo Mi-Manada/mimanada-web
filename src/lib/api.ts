@@ -207,6 +207,19 @@ export type Pet = {
   status: PetStatus;
   createdAt: string;
   updatedAt: string;
+  owner?: PublicUserProfile | null;
+};
+
+export type PublicUserProfile = {
+  id: string;
+  fullName: string;
+  phone: string | null;
+  userType: "persona" | "fundacion" | "proveedor";
+  state: string | null;
+  municipality: string | null;
+  addressLine: string | null;
+  profilePhotoUrl: string | null;
+  speciesFocus?: PetSpecies[];
 };
 
 export type CreatePetInput = {
@@ -231,9 +244,11 @@ export type CreatePetInput = {
   caseKind?: PetCaseKind;
   photos: File[];
   medicalExams?: File[];
+  existingPhotoUrls?: string[];
+  existingMedicalExamUrls?: string[];
 };
 
-export async function createPet(input: CreatePetInput): Promise<Pet> {
+function appendPetFormData(input: CreatePetInput): FormData {
   const body = new FormData();
   body.append("name", input.name);
   if (input.ageUnknown) {
@@ -261,13 +276,39 @@ export async function createPet(input: CreatePetInput): Promise<Pet> {
   if (input.diseases) body.append("diseases", input.diseases);
   if (input.litterGroupId) body.append("litterGroupId", input.litterGroupId);
   if (input.caseKind) body.append("caseKind", input.caseKind);
+  if (input.existingPhotoUrls) {
+    body.append("existingPhotoUrls", JSON.stringify(input.existingPhotoUrls));
+  }
+  if (input.existingMedicalExamUrls) {
+    body.append(
+      "existingMedicalExamUrls",
+      JSON.stringify(input.existingMedicalExamUrls),
+    );
+  }
   for (const photo of input.photos) {
     body.append("photos", photo);
   }
   for (const exam of input.medicalExams ?? []) {
     body.append("medicalExams", exam);
   }
-  return apiFetch<Pet>("/pets", { method: "POST", body });
+  return body;
+}
+
+export async function createPet(input: CreatePetInput): Promise<Pet> {
+  return apiFetch<Pet>("/pets", {
+    method: "POST",
+    body: appendPetFormData(input),
+  });
+}
+
+export async function updatePet(
+  id: string,
+  input: CreatePetInput,
+): Promise<Pet> {
+  return apiFetch<Pet>(`/pets/${id}`, {
+    method: "PATCH",
+    body: appendPetFormData(input),
+  });
 }
 
 export async function getMyPets(): Promise<Pet[]> {
@@ -288,8 +329,34 @@ export async function updatePetStatus(
   });
 }
 
+export async function attachPetToLitter(
+  petId: string,
+  litterGroupId: string,
+  isLitterMother?: boolean,
+): Promise<Pet> {
+  return apiFetch<Pet>(`/pets/${petId}/litter`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      litterGroupId,
+      ...(isLitterMother != null ? { isLitterMother } : {}),
+    }),
+  });
+}
+
 export async function getPublishedPets(): Promise<Pet[]> {
   return apiFetch<Pet[]>("/pets");
+}
+
+export async function getPet(id: string): Promise<Pet> {
+  return apiFetch<Pet>(`/pets/${id}`);
+}
+
+export async function getPetSiblings(id: string): Promise<Pet[]> {
+  return apiFetch<Pet[]>(`/pets/${id}/siblings`);
+}
+
+export async function getPublicUser(id: string): Promise<PublicUserProfile> {
+  return apiFetch<PublicUserProfile>(`/users/${id}/public`);
 }
 
 export async function getHealth(): Promise<{ status: string }> {

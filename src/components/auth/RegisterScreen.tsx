@@ -74,7 +74,7 @@ export function RegisterScreen() {
 
   const userTypeOptions = useMemo<SelectOption[]>(
     () => [
-      { value: "persona", label: "Persona normal", icon: <IconPerson /> },
+      { value: "persona", label: "Persona natural", icon: <IconPerson /> },
       { value: "fundacion", label: "Fundación", icon: <IconHome /> },
       { value: "proveedor", label: "Proveedor", icon: <IconProvider /> },
     ],

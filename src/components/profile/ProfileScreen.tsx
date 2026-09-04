@@ -45,7 +45,7 @@ const menuSections: MenuSection[] = [
       },
       {
         title: "Verificación",
-        description: "Foto de perfil, cédula y selfie",
+        description: "Primero la cédula; luego foto y selfie",
         href: "/perfil/verificacion",
         icon: (
           <ProfileMenuIcon>
@@ -194,7 +194,7 @@ function userTypeLabel(type: AuthUser["userType"] | undefined) {
       return "Comercio / marca";
     case "persona":
     default:
-      return "Persona";
+      return "Persona natural";
   }
 }
 

@@ -91,6 +91,25 @@ export function MaleIcon({ size = 18 }: { size?: number }) {
   );
 }
 
+export function PawIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden
+      className="shrink-0"
+    >
+      <ellipse cx="12" cy="15.2" rx="4.2" ry="3.6" />
+      <ellipse cx="5.6" cy="10.2" rx="2.1" ry="2.6" transform="rotate(-18 5.6 10.2)" />
+      <ellipse cx="9.2" cy="7.2" rx="2" ry="2.5" transform="rotate(-6 9.2 7.2)" />
+      <ellipse cx="14.8" cy="7.2" rx="2" ry="2.5" transform="rotate(6 14.8 7.2)" />
+      <ellipse cx="18.4" cy="10.2" rx="2.1" ry="2.6" transform="rotate(18 18.4 10.2)" />
+    </svg>
+  );
+}
+
 export function UnknownSexIcon({ size = 18 }: { size?: number }) {
   return (
     <svg

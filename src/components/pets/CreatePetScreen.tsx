@@ -29,7 +29,11 @@ import {
   ApiError,
   createPet,
   getMe,
+  getPet,
+  mediaUrl,
+  updatePet,
   type AuthUser,
+  type PetCaseKind,
   type PetSex,
   type PetSize,
   type PetSpecies,
@@ -37,13 +41,17 @@ import {
 import {
   dataUrlToFile,
   filesToDataUrls,
+  getLitterCart,
   getLitterDraft,
   getLitterLockedSpecies,
+  hasLitterMother,
   listLitterDrafts,
   newLitterLocalId,
+  setLinkedPetMother,
   upsertLitterDraft,
 } from "@/lib/litter-draft";
 import { CAT_BREEDS, DOG_BREEDS } from "@/lib/pet-breeds";
+import { petPath } from "@/lib/seo-urls";
 import {
   focusFormField,
   isValidVeMobile,
@@ -55,13 +63,15 @@ type TriBool = boolean | null;
 
 type PhotoSlot = {
   previewUrl: string;
-  file: File;
+  file: File | null;
+  existingUrl?: string;
 };
 
 type ExamSlot = {
   previewUrl: string;
-  file: File;
+  file: File | null;
   kind: "image" | "pdf";
+  existingUrl?: string;
 };
 
 const MAX_MEDICAL_EXAMS = 5;
@@ -168,16 +178,26 @@ function Section({
 
 export function CreatePetScreen({
   mode = "isolated",
+  litterCartId,
   litterItemId,
+  editPetId,
+  backHref: backHrefProp,
 }: {
   mode?: "isolated" | "litter";
+  litterCartId?: string;
   litterItemId?: string;
+  /** Si viene, carga la publicación y guarda con PATCH. */
+  editPetId?: string;
+  /** Destino del botón volver / post-guardar en modo edición. */
+  backHref?: string;
 }) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const examInputRef = useRef<HTMLInputElement>(null);
   const cropSlotRef = useRef<number>(0);
-  const isLitter = mode === "litter";
+  const isEdit = Boolean(editPetId);
+  const isLitter = mode === "litter" && !isEdit;
+  const cartId = litterCartId ?? "";
   const editingId = litterItemId && litterItemId !== "nuevo" ? litterItemId : null;
   const localIdRef = useRef(editingId ?? newLitterLocalId());
 
@@ -188,6 +208,7 @@ export function CreatePetScreen({
   const [ageUnit, setAgeUnit] = useState<"years" | "months">("years");
   const [ageUnknown, setAgeUnknown] = useState(false);
   const [isLitterMother, setIsLitterMother] = useState(false);
+  const [motherTaken, setMotherTaken] = useState(false);
   const [size, setSize] = useState<PetSize | null>(null);
   const [sex, setSex] = useState<PetSex | null>(null);
   const [species, setSpecies] = useState<PetSpecies | null>(null);
@@ -209,27 +230,128 @@ export function CreatePetScreen({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [errorField, setErrorField] = useState<string | null>(null);
-  const [draftReady, setDraftReady] = useState(!isLitter);
+  const [draftReady, setDraftReady] = useState(!isLitter && !isEdit);
   const [lockedSpecies, setLockedSpecies] = useState<PetSpecies | null>(null);
+  const [editCaseKind, setEditCaseKind] = useState<PetCaseKind | null>(null);
+  const [editBackHref, setEditBackHref] = useState(backHrefProp ?? "/adopta");
 
   const breeds = useMemo(() => {
     if (species === "cat") return CAT_BREEDS;
     return DOG_BREEDS;
   }, [species]);
 
-  const backHref = isLitter
-    ? "/adopta/nueva/camada"
-    : "/adopta/nueva";
+  const litterCartFromBack = useMemo(() => {
+    if (!backHrefProp) return null;
+    const match = backHrefProp.match(/^\/adopta\/nueva\/camada\/([^/?#]+)/);
+    return match?.[1] ?? null;
+  }, [backHrefProp]);
+
+  const editingFromLitterCart = Boolean(isEdit && litterCartFromBack);
+
+  const showLitterMother =
+    isLitter ||
+    editingFromLitterCart ||
+    (isEdit && editCaseKind === "litter");
+
+  const backHref = isEdit
+    ? backHrefProp || editBackHref
+    : isLitter
+      ? cartId
+        ? `/adopta/nueva/camada/${cartId}`
+        : "/adopta/nueva/camada"
+      : "/adopta/nueva";
 
   useEffect(() => {
     let cancelled = false;
     getMe()
-      .then((me) => {
+      .then(async (me) => {
         if (cancelled) return;
         setUser(me);
 
+        if (isEdit && editPetId) {
+          const pet = await getPet(editPetId);
+          if (cancelled) return;
+          if (pet.ownerId !== me.id) {
+            setError("Solo puedes editar tus propias publicaciones.");
+            setDraftReady(true);
+            setCheckingUser(false);
+            return;
+          }
+          setEditCaseKind(pet.caseKind);
+          setEditBackHref(backHrefProp || petPath(pet));
+          setName(pet.name);
+          if (pet.ageUnknown) {
+            setAgeUnknown(true);
+            setAgeValue("0");
+            setAgeUnit("years");
+          } else if (pet.ageMonths != null) {
+            setAgeUnknown(false);
+            setAgeUnit("months");
+            setAgeValue(String(pet.ageMonths));
+          } else {
+            setAgeUnknown(false);
+            setAgeUnit("years");
+            setAgeValue(String(pet.ageYears ?? 0));
+          }
+          if (litterCartFromBack) {
+            const cart = getLitterCart(litterCartFromBack);
+            const linked = cart?.linkedPets.find((p) => p.petId === editPetId);
+            setIsLitterMother(Boolean(linked?.isLitterMother));
+            setMotherTaken(
+              hasLitterMother(litterCartFromBack, null, editPetId),
+            );
+          } else {
+            setIsLitterMother(Boolean(pet.isLitterMother));
+            setMotherTaken(false);
+          }
+          setSize(pet.size);
+          setSex(pet.sex);
+          setSpecies(pet.species);
+          setVaccinated(pet.vaccinated);
+          setSterilized(pet.sterilized);
+          setDewormed(pet.dewormed);
+          setBreed(pet.breed ?? "");
+          setDescription(pet.description ?? "");
+          setDiseases(pet.diseases ?? "");
+          const phone = pet.contactPhone || me.phone || "";
+          setPhoneCode("+58");
+          setContactPhone(toLocalVePhone(phone));
+          setCity(pet.city || me.municipality || "");
+          setMunicipality(pet.municipality || me.state || "");
+          setPhotos(
+            [0, 1, 2].map((i) => {
+              const url = pet.photoUrls[i];
+              if (!url) return null;
+              const preview = mediaUrl(url) ?? url;
+              return {
+                previewUrl: preview,
+                file: null,
+                existingUrl: url,
+              };
+            }),
+          );
+          setMedicalExams(
+            (pet.medicalExamUrls ?? []).slice(0, MAX_MEDICAL_EXAMS).map((url) => {
+              const isPdf = /\.pdf($|\?)/i.test(url);
+              const preview = mediaUrl(url) ?? url;
+              return {
+                previewUrl: isPdf ? "" : preview,
+                file: null,
+                kind: isPdf ? ("pdf" as const) : ("image" as const),
+                existingUrl: url,
+              };
+            }),
+          );
+          setDraftReady(true);
+          return;
+        }
+
         if (isLitter) {
-          const existing = editingId ? getLitterDraft(editingId) : null;
+          if (!cartId) {
+            router.replace("/adopta/nueva/camada");
+            return;
+          }
+          const existing = editingId ? getLitterDraft(cartId, editingId) : null;
           if (existing) {
             localIdRef.current = existing.localId;
             setName(existing.name);
@@ -280,18 +402,20 @@ export function CreatePetScreen({
                 };
               }),
             );
-            const locked = getLitterLockedSpecies(existing.localId);
+            const locked = getLitterLockedSpecies(cartId, existing.localId);
             setLockedSpecies(locked);
             if (locked) {
               setSpecies(locked);
               if (existing.species !== locked) setBreed("");
             }
+            setMotherTaken(hasLitterMother(cartId, existing.localId));
           } else {
-            const siblings = listLitterDrafts();
+            const siblings = listLitterDrafts(cartId);
             const sample = siblings[0];
-            const locked = getLitterLockedSpecies(localIdRef.current);
+            const locked = getLitterLockedSpecies(cartId, localIdRef.current);
             setLockedSpecies(locked);
             if (locked) setSpecies(locked);
+            setMotherTaken(hasLitterMother(cartId, localIdRef.current));
             setContactPhone(
               toLocalVePhone(sample?.contactPhone || me.phone || ""),
             );
@@ -304,8 +428,14 @@ export function CreatePetScreen({
           setMunicipality(me.state || "");
         }
       })
-      .catch(() => {
-        if (!cancelled) setError("No se pudo verificar tu perfil.");
+      .catch((err) => {
+        if (!cancelled) {
+          setError(
+            err instanceof ApiError
+              ? err.message
+              : "No se pudo verificar tu perfil.",
+          );
+        }
       })
       .finally(() => {
         if (!cancelled) {
@@ -316,7 +446,16 @@ export function CreatePetScreen({
     return () => {
       cancelled = true;
     };
-  }, [editingId, isLitter]);
+  }, [
+    backHrefProp,
+    cartId,
+    editPetId,
+    editingId,
+    isEdit,
+    isLitter,
+    litterCartFromBack,
+    router,
+  ]);
 
   function openPhotoPicker(slot: number) {
     cropSlotRef.current = slot;
@@ -443,7 +582,7 @@ export function CreatePetScreen({
       return;
     }
     if (isLitter) {
-      const locked = getLitterLockedSpecies(localIdRef.current);
+      const locked = getLitterLockedSpecies(cartId, localIdRef.current);
       if (locked && species !== locked) {
         fail(
           locked === "dog"
@@ -487,10 +626,8 @@ export function CreatePetScreen({
       return;
     }
 
-    const photoFiles = photos
-      .filter((p): p is PhotoSlot => Boolean(p))
-      .map((p) => p.file);
-    if (photoFiles.length < 1) {
+    const photoSlots = photos.filter((p): p is PhotoSlot => Boolean(p));
+    if (photoSlots.length < 1) {
       fail("Sube al menos una foto (máximo 3).", "field-photos");
       return;
     }
@@ -498,7 +635,18 @@ export function CreatePetScreen({
       fail(`Máximo ${MAX_MEDICAL_EXAMS} exámenes médicos.`, "field-exams");
       return;
     }
-    const medicalExamFiles = medicalExams.map((e) => e.file);
+    const photoFiles = photoSlots
+      .map((p) => p.file)
+      .filter((f): f is File => Boolean(f));
+    const existingPhotoUrls = photoSlots
+      .map((p) => p.existingUrl)
+      .filter((url): url is string => Boolean(url));
+    const medicalExamFiles = medicalExams
+      .map((e) => e.file)
+      .filter((f): f is File => Boolean(f));
+    const existingMedicalExamUrls = medicalExams
+      .map((e) => e.existingUrl)
+      .filter((url): url is string => Boolean(url));
 
     let years: number | undefined;
     let months: number | undefined;
@@ -523,8 +671,25 @@ export function CreatePetScreen({
       }
     }
 
-    if (isLitter && isLitterMother && sex === "male") {
+    if (showLitterMother && isLitterMother && sex === "male") {
       fail("La mamá de la camada debe ser hembra.", "field-mother");
+      return;
+    }
+    if (
+      isLitter &&
+      isLitterMother &&
+      hasLitterMother(cartId, localIdRef.current)
+    ) {
+      fail("Ya hay una mamá marcada en esta camada.", "field-mother");
+      return;
+    }
+    if (
+      editingFromLitterCart &&
+      litterCartFromBack &&
+      isLitterMother &&
+      hasLitterMother(litterCartFromBack, null, editPetId)
+    ) {
+      fail("Ya hay una mamá marcada en esta camada.", "field-mother");
       return;
     }
 
@@ -538,7 +703,7 @@ export function CreatePetScreen({
           medicalExamFiles.length > 0
             ? await filesToDataUrls(medicalExamFiles)
             : [];
-        upsertLitterDraft({
+        upsertLitterDraft(cartId, {
           localId: localIdRef.current,
           name: trimmedName,
           ageYears: ageUnknown || ageUnit === "months" ? null : (years ?? null),
@@ -561,7 +726,38 @@ export function CreatePetScreen({
           photoDataUrls,
           medicalExamDataUrls,
         });
-        router.replace("/adopta/nueva/camada");
+        router.replace(`/adopta/nueva/camada/${cartId}`);
+        return;
+      }
+
+      if (isEdit && editPetId) {
+        const saved = await updatePet(editPetId, {
+          name: trimmedName,
+          ageYears: years,
+          ageMonths: months,
+          ageUnknown,
+          isLitterMother: showLitterMother ? isLitterMother : undefined,
+          species,
+          sex,
+          size,
+          breed: breed || undefined,
+          vaccinated,
+          sterilized,
+          dewormed,
+          contactPhone: fullPhone,
+          city: city.trim(),
+          municipality: municipality.trim(),
+          description: description.trim() || undefined,
+          diseases: diseases.trim() || undefined,
+          photos: photoFiles,
+          medicalExams: medicalExamFiles,
+          existingPhotoUrls,
+          existingMedicalExamUrls,
+        });
+        if (litterCartFromBack) {
+          setLinkedPetMother(litterCartFromBack, editPetId, isLitterMother);
+        }
+        router.replace(backHrefProp || petPath(saved));
         return;
       }
 
@@ -593,7 +789,9 @@ export function CreatePetScreen({
           ? err.message
           : isLitter
             ? "No se pudo guardar en la camada."
-            : "No se pudo publicar la mascota. Intenta de nuevo.",
+            : isEdit
+              ? "No se pudo guardar los cambios. Intenta de nuevo."
+              : "No se pudo publicar la mascota. Intenta de nuevo.",
       );
     } finally {
       setSaving(false);
@@ -631,16 +829,20 @@ export function CreatePetScreen({
             </Link>
             <div>
               <h1 className="text-[1.05rem] [font-weight:700]">
-                {isLitter
-                  ? editingId
-                    ? "Editar mascota"
-                    : "Agregar a la camada"
-                  : "Caso aislado"}
+                {isEdit
+                  ? "Editar mascota"
+                  : isLitter
+                    ? editingId
+                      ? "Editar mascota"
+                      : "Agregar a la camada"
+                    : "Caso aislado"}
               </h1>
               <p className="text-[0.75rem] text-white/85">
-                {isLitter
-                  ? "Se guarda en tu camada"
-                  : "Completa la ficha y postea el caso"}
+                {isEdit
+                  ? "Actualiza la ficha y guarda los cambios"
+                  : isLitter
+                    ? "Se guarda en tu camada"
+                    : "Completa la ficha y postea el caso"}
               </p>
             </div>
           </div>
@@ -785,31 +987,40 @@ export function CreatePetScreen({
                 </div>
               </div>
 
-              {isLitter ? (
+              {showLitterMother ? (
                 <label
                   id="field-mother"
-                  className={`flex cursor-pointer items-start gap-3 rounded-[12px] border px-3.5 py-3 ${
+                  className={`flex items-start gap-3 rounded-[12px] border px-3.5 py-3 ${
+                    motherTaken && !isLitterMother
+                      ? "cursor-not-allowed border-[#ececec] bg-[#f7f7f7] opacity-70"
+                      : "cursor-pointer"
+                  } ${
                     errorField === "field-mother"
                       ? "border-[var(--color-primary)] bg-[var(--color-primary)]/5"
-                      : "border-[#ececec] bg-[#fafafa]"
+                      : motherTaken && !isLitterMother
+                        ? ""
+                        : "border-[#ececec] bg-[#fafafa]"
                   }`}
                 >
                   <input
                     type="checkbox"
                     checked={isLitterMother}
+                    disabled={motherTaken && !isLitterMother}
                     onChange={(e) => {
                       const checked = e.target.checked;
                       setIsLitterMother(checked);
                       if (checked) setSex("female");
                     }}
-                    className="mt-0.5 accent-[var(--color-primary)]"
+                    className="mt-0.5 accent-[var(--color-primary)] disabled:cursor-not-allowed"
                   />
                   <span>
                     <span className="block text-[0.9rem] text-[#555] [font-weight:700]">
                       Es la mamá de la camada
                     </span>
                     <span className="mt-0.5 block text-[0.75rem] text-[var(--color-text-muted)]">
-                      Marca solo a la madre. Solo puede haber una por camada.
+                      {motherTaken && !isLitterMother
+                        ? "Ya hay una mamá marcada. Desmárcala primero para elegir otra."
+                        : "Marca solo a la madre. Solo puede haber una por camada."}
                     </span>
                   </span>
                 </label>
@@ -998,9 +1209,13 @@ export function CreatePetScreen({
                   >
                     {medicalExams.map((exam, index) => {
                       const tall = index % 3 === 1;
+                      const examLabel =
+                        exam.file?.name ||
+                        exam.existingUrl?.split("/").pop() ||
+                        `Archivo ${index + 1}`;
                       return (
                         <div
-                          key={`${exam.file.name}-${exam.file.size}-${index}`}
+                          key={`${exam.existingUrl ?? exam.file?.name ?? "exam"}-${index}`}
                           className={`relative overflow-hidden rounded-[12px] border border-[#ececec] bg-[#f7f7f7] ${
                             tall
                               ? "row-span-2 min-h-[14.5rem]"
@@ -1042,7 +1257,7 @@ export function CreatePetScreen({
                                 />
                               </svg>
                               <span className="line-clamp-2 text-[0.65rem] [font-weight:600]">
-                                {exam.file.name || `Archivo ${index + 1}`}
+                                {examLabel}
                               </span>
                             </div>
                           )}
@@ -1256,12 +1471,16 @@ export function CreatePetScreen({
               className="mt-1 h-11 w-full text-[0.9rem] lg:col-span-2"
             >
               {saving
-                ? isLitter
+                ? isEdit
                   ? "Guardando..."
-                  : "Publicando..."
-                : isLitter
-                  ? "Guardar en camada"
-                  : "Postear caso"}
+                  : isLitter
+                    ? "Guardando..."
+                    : "Publicando..."
+                : isEdit
+                  ? "Guardar cambios"
+                  : isLitter
+                    ? "Guardar en camada"
+                    : "Postear caso"}
             </Button>
           </form>
         ) : null}

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { ImageCropModal } from "@/components/ui/ImageCropModal";
@@ -25,16 +26,16 @@ const STEPS: {
   tip: string;
 }[] = [
   {
-    kind: "profile",
-    title: "Foto de perfil",
-    description: "Esta será la imagen que verán otros usuarios en la manada.",
-    tip: "Usa una foto clara de tu rostro, con buena luz.",
-  },
-  {
     kind: "id_card",
     title: "Foto de tu cédula",
     description: "Necesitamos tu documento para verificar tu identidad.",
     tip: "Sube el frente de la cédula, legible y sin recortes.",
+  },
+  {
+    kind: "profile",
+    title: "Foto de perfil",
+    description: "Esta será la imagen que verán otros usuarios en la manada.",
+    tip: "Usa una foto clara de tu rostro, con buena luz.",
   },
   {
     kind: "selfie",
@@ -56,7 +57,9 @@ export function ActivationOnboardingScreen({
 }: {
   mode?: "tutorial" | "manage";
 }) {
+  const router = useRouter();
   const [user, setUser] = useState<AuthUser | null>(null);
+  const laterHref = mode === "manage" ? "/perfil" : "/home";
   const [stepIndex, setStepIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -170,6 +173,14 @@ export function ActivationOnboardingScreen({
     await uploadFile(file);
   }
 
+  function handleSkipOrLater() {
+    if (stepIndex < STEPS.length - 1) {
+      setStepIndex((i) => i + 1);
+      return;
+    }
+    router.push(laterHref);
+  }
+
   if (loading) {
     return (
       <section className="flex min-h-full flex-1 items-center justify-center px-6">
@@ -192,7 +203,7 @@ export function ActivationOnboardingScreen({
         <p className="mt-2 text-center text-[0.875rem] leading-relaxed text-[var(--color-text-muted)]">
           {complete
             ? "Ya subiste tus documentos. Tu perfil queda activo para usar adopciones."
-            : "Para activar tu cuenta necesitamos 3 fotos. Toma solo un minuto."}
+            : "Para activar tu cuenta sube tu cédula y completa las fotos. Puedes omitir pasos y terminar luego."}
         </p>
 
         <div className="mt-5 flex items-center justify-center gap-2">
@@ -279,6 +290,17 @@ export function ActivationOnboardingScreen({
           {error ? (
             <p className="mt-3 text-[0.85rem] text-[var(--color-primary)]">{error}</p>
           ) : null}
+
+          <button
+            type="button"
+            onClick={handleSkipOrLater}
+            disabled={uploading}
+            className="mt-4 w-full cursor-pointer text-center text-[0.82rem] text-[var(--color-text-muted)] underline-offset-2 transition hover:text-[var(--color-primary)] hover:underline disabled:opacity-50 [font-weight:600]"
+          >
+            {stepIndex < STEPS.length - 1
+              ? "Omitir / Hacer luego"
+              : "Omitir y continuar"}
+          </button>
         </div>
 
         <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-between">
@@ -301,10 +323,10 @@ export function ActivationOnboardingScreen({
             </Button>
           ) : (
             <Link
-              href="/home"
+              href={laterHref}
               className="inline-flex h-9 items-center justify-center rounded-[var(--radius-pill)] bg-[var(--color-primary)] px-5 text-[0.8125rem] text-white [font-weight:700]"
             >
-              {complete ? "Ir al inicio" : "Continuar después"}
+              {complete ? "Listo" : "Continuar después"}
             </Link>
           )}
         </div>

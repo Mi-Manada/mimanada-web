@@ -1,5 +1,5 @@
-import { LitterCartScreen } from "@/components/pets/LitterCartScreen";
+import { LitterListScreen } from "@/components/pets/LitterListScreen";
 
-export default function CamadaPage() {
-  return <LitterCartScreen />;
+export default function CamadasPage() {
+  return <LitterListScreen />;
 }

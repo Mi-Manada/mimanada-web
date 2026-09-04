@@ -82,7 +82,7 @@ export function AdoptionChoiceScreen() {
           <ChoiceCard
             href="/adopta/nueva/camada"
             title="Camada"
-            description="Varias mascotas relacionadas. Agregas, editas o eliminas cada una antes de publicar."
+            description="Varias camadas. Puedes agregar mascotas nuevas o ya publicadas antes de postear."
             icon={<CamadaIcon size={32} />}
           />
           <ChoiceCard

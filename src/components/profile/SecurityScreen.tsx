@@ -9,6 +9,7 @@ import {
   ApiError,
   changePasswordRequest,
   getMe,
+  peekMe,
   type AuthUser,
 } from "@/lib/api";
 
@@ -21,8 +22,9 @@ function MenuIcon({ children }: { children: ReactNode }) {
 }
 
 export function SecurityScreen() {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [loading, setLoading] = useState(true);
+  const cachedUser = peekMe();
+  const [user, setUser] = useState<AuthUser | null>(() => cachedUser);
+  const [loading, setLoading] = useState(() => cachedUser == null);
   const [changingPassword, setChangingPassword] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");

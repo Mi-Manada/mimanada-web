@@ -10,6 +10,7 @@ import {
 } from "@/components/profile/ProfilePageShell";
 import {
   ApiError,
+  attachPetToLitter,
   deletePet,
   getMyPets,
   mediaUrl,
@@ -30,6 +31,9 @@ export function MyLitterDetailScreen({ groupId }: { groupId: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [loadingPets, setLoadingPets] = useState(false);
+  const [attachingId, setAttachingId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -65,6 +69,17 @@ export function MyLitterDetailScreen({ groupId }: { groupId: string }) {
 
   const fromHref = `/adopta/camadas/${groupId}`;
 
+  const availablePets = useMemo(() => {
+    if (!litter) return [];
+    const memberIds = new Set(litter.members.map((pet) => pet.id));
+    return pets.filter((pet) => {
+      if (memberIds.has(pet.id)) return false;
+      if (pet.status !== "published") return false;
+      if (litter.species && pet.species !== litter.species) return false;
+      return true;
+    });
+  }, [pets, litter]);
+
   async function handleDelete(pet: Pet) {
     if (deletingId) return;
     const ok = window.confirm(
@@ -89,6 +104,45 @@ export function MyLitterDetailScreen({ groupId }: { groupId: string }) {
       );
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  async function openPicker() {
+    setError("");
+    setPickerOpen(true);
+    setLoadingPets(true);
+    try {
+      const data = await getMyPets();
+      setPets(data);
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : "No se pudieron cargar tus publicaciones.",
+      );
+      setPickerOpen(false);
+    } finally {
+      setLoadingPets(false);
+    }
+  }
+
+  async function handleAttach(pet: Pet) {
+    if (attachingId) return;
+    setAttachingId(pet.id);
+    setError("");
+    try {
+      await attachPetToLitter(pet.id, groupId, false);
+      const next = await getMyPets();
+      setPets(next);
+      setPickerOpen(false);
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : "No se pudo agregar a la camada.",
+      );
+    } finally {
+      setAttachingId(null);
     }
   }
 
@@ -250,6 +304,86 @@ export function MyLitterDetailScreen({ groupId }: { groupId: string }) {
                 </article>
               );
             })}
+          </div>
+
+          {pickerOpen ? (
+            <div className="rounded-[14px] border border-[#ececec] bg-white p-4">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <h3 className="text-[0.9rem] text-[#555] [font-weight:700]">
+                  Tus mascotas publicadas
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setPickerOpen(false)}
+                  className="cursor-pointer text-[0.8rem] text-[var(--color-text-muted)] [font-weight:600]"
+                >
+                  Cerrar
+                </button>
+              </div>
+              {loadingPets ? (
+                <p className="text-[0.85rem] text-[var(--color-text-muted)]">
+                  Cargando...
+                </p>
+              ) : availablePets.length === 0 ? (
+                <p className="text-[0.85rem] text-[var(--color-text-muted)]">
+                  No hay publicaciones disponibles
+                  {litter.species
+                    ? litter.species === "dog"
+                      ? " de perros"
+                      : " de gatos"
+                    : ""}
+                  .
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {availablePets.map((pet) => (
+                    <button
+                      key={pet.id}
+                      type="button"
+                      disabled={attachingId === pet.id}
+                      onClick={() => handleAttach(pet)}
+                      className="flex cursor-pointer items-center gap-3 rounded-[12px] border border-[#ececec] px-3 py-2 text-left transition hover:border-[var(--color-primary)]/40 disabled:opacity-60"
+                    >
+                      <div className="h-12 w-12 shrink-0 overflow-hidden rounded-[8px] bg-[#f3f3f3]">
+                        {pet.photoUrls[0] ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={mediaUrl(pet.photoUrls[0]) ?? undefined}
+                            alt={pet.name}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : null}
+                      </div>
+                      <span className="min-w-0">
+                        <span className="block truncate text-[0.9rem] text-[#555] [font-weight:700]">
+                          {pet.name}
+                        </span>
+                        <span className="text-[0.75rem] text-[var(--color-text-muted)]">
+                          {pet.species === "cat" ? "Gato" : "Perro"}
+                          {pet.caseKind === "litter" ? " · Ya en otra camada" : ""}
+                        </span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : null}
+
+          <div className="grid grid-cols-1 gap-2 border-t border-[#f0f0f0] pt-4 sm:grid-cols-2">
+            <Link
+              href={`/adopta/camadas/${groupId}/nueva`}
+              className="inline-flex h-11 items-center justify-center rounded-full border border-[var(--color-primary)] px-3 text-center text-[0.85rem] text-[var(--color-primary)] [font-weight:700] sm:text-[0.9rem]"
+            >
+              + Agregar mascota nueva
+            </Link>
+            <button
+              type="button"
+              onClick={openPicker}
+              className="inline-flex h-11 cursor-pointer items-center justify-center rounded-full border border-[#e4e4e4] px-3 text-center text-[0.85rem] text-[#555] [font-weight:700] sm:text-[0.9rem]"
+            >
+              + Agregar desde mis puestos
+            </button>
           </div>
         </div>
       ) : null}

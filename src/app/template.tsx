@@ -1,8 +1,6 @@
-"use client";
-
 import type { ReactNode } from "react";
-import { PageTransition } from "@/components/ui/PageTransition";
 
+/** Layout wrapper without fade — navigation should feel instant. */
 export default function Template({ children }: { children: ReactNode }) {
-  return <PageTransition>{children}</PageTransition>;
+  return <div className="flex min-h-full flex-1 flex-col">{children}</div>;
 }

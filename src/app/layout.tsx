@@ -11,6 +11,13 @@ const poppins = Poppins({
 export const metadata: Metadata = {
   title: "MiManada",
   description: "Adopta, cuida y consiente. Únete a la manada.",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon.png", type: "image/png", sizes: "512x512" },
+    ],
+    apple: [{ url: "/apple-icon.png", type: "image/png", sizes: "180x180" }],
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

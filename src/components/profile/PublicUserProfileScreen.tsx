@@ -217,25 +217,6 @@ export function PublicUserProfileScreen({
                 <span>{location}</span>
               </p>
 
-              {profile.phone ? (
-                <div className="mt-3 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-[0.88rem] text-[#666]">
-                  <a
-                    href={`tel:${profile.phone}`}
-                    className="inline-flex items-center gap-2 transition hover:text-[var(--color-primary)]"
-                  >
-                    <span className="text-[var(--color-primary)]">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
-                        <path
-                          d="M7.2 4.8c.4-.4 1-.5 1.5-.3l2.2.9c.5.2.8.7.7 1.2l-.4 2.1a1.1 1.1 0 0 1-.6.8l-1.3.6a11 11 0 0 0 5.1 5.1l.6-1.3c.2-.4.5-.6.8-.6l2.1-.4c.5-.1 1 .2 1.2.7l.9 2.2c.2.5.1 1.1-.3 1.5l-1.1 1.1c-.4.4-1 .6-1.6.5C10.5 18.7 5.3 13.5 4.3 7.5c-.1-.6.1-1.2.5-1.6L7.2 4.8Z"
-                          fill="currentColor"
-                        />
-                      </svg>
-                    </span>
-                    {profile.phone}
-                  </a>
-                </div>
-              ) : null}
-
               <p className="mt-3 inline-flex items-center gap-2 text-[0.9rem] text-[var(--color-primary)] [font-weight:700]">
                 <span className="inline-flex items-center gap-1">
                   {showDogs ? <DogIcon size={18} /> : null}

@@ -29,6 +29,7 @@ import {
   ApiError,
   createPet,
   getMe,
+  getMyPets,
   getPet,
   mediaUrl,
   updatePet,
@@ -182,6 +183,7 @@ export function CreatePetScreen({
   litterItemId,
   editPetId,
   backHref: backHrefProp,
+  publishedLitterGroupId,
 }: {
   mode?: "isolated" | "litter";
   litterCartId?: string;
@@ -190,12 +192,15 @@ export function CreatePetScreen({
   editPetId?: string;
   /** Destino del botón volver / post-guardar en modo edición. */
   backHref?: string;
+  /** Agregar mascota nueva a una camada ya publicada. */
+  publishedLitterGroupId?: string;
 }) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const examInputRef = useRef<HTMLInputElement>(null);
   const cropSlotRef = useRef<number>(0);
   const isEdit = Boolean(editPetId);
+  const addingToPublishedLitter = Boolean(publishedLitterGroupId && !isEdit);
   const isLitter = mode === "litter" && !isEdit;
   const cartId = litterCartId ?? "";
   const editingId = litterItemId && litterItemId !== "nuevo" ? litterItemId : null;
@@ -230,7 +235,9 @@ export function CreatePetScreen({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [errorField, setErrorField] = useState<string | null>(null);
-  const [draftReady, setDraftReady] = useState(!isLitter && !isEdit);
+  const [draftReady, setDraftReady] = useState(
+    !isLitter && !isEdit && !addingToPublishedLitter,
+  );
   const [lockedSpecies, setLockedSpecies] = useState<PetSpecies | null>(null);
   const [editCaseKind, setEditCaseKind] = useState<PetCaseKind | null>(null);
   const [editBackHref, setEditBackHref] = useState(backHrefProp ?? "/adopta");
@@ -250,16 +257,19 @@ export function CreatePetScreen({
 
   const showLitterMother =
     isLitter ||
+    addingToPublishedLitter ||
     editingFromLitterCart ||
     (isEdit && editCaseKind === "litter");
 
   const backHref = isEdit
     ? backHrefProp || editBackHref
-    : isLitter
-      ? cartId
-        ? `/adopta/nueva/camada/${cartId}`
-        : "/adopta/nueva/camada"
-      : "/adopta/nueva";
+    : addingToPublishedLitter && publishedLitterGroupId
+      ? `/adopta/camadas/${publishedLitterGroupId}`
+      : isLitter
+        ? cartId
+          ? `/adopta/nueva/camada/${cartId}`
+          : "/adopta/nueva/camada"
+        : "/adopta/nueva";
 
   useEffect(() => {
     let cancelled = false;
@@ -342,6 +352,30 @@ export function CreatePetScreen({
               };
             }),
           );
+          setDraftReady(true);
+          return;
+        }
+
+        if (addingToPublishedLitter && publishedLitterGroupId) {
+          const mine = await getMyPets();
+          if (cancelled) return;
+          const members = mine.filter(
+            (pet) => pet.litterGroupId === publishedLitterGroupId,
+          );
+          if (members.length === 0) {
+            setError("No se encontró la camada.");
+            setDraftReady(true);
+            return;
+          }
+          const sample = members[0];
+          setLockedSpecies(sample.species);
+          setSpecies(sample.species);
+          setMotherTaken(members.some((pet) => pet.isLitterMother));
+          setContactPhone(
+            toLocalVePhone(sample.contactPhone || me.phone || ""),
+          );
+          setCity(sample.city || me.municipality || "");
+          setMunicipality(sample.municipality || me.state || "");
           setDraftReady(true);
           return;
         }
@@ -447,6 +481,7 @@ export function CreatePetScreen({
       cancelled = true;
     };
   }, [
+    addingToPublishedLitter,
     backHrefProp,
     cartId,
     editPetId,
@@ -454,6 +489,7 @@ export function CreatePetScreen({
     isEdit,
     isLitter,
     litterCartFromBack,
+    publishedLitterGroupId,
     router,
   ]);
 
@@ -593,6 +629,19 @@ export function CreatePetScreen({
         return;
       }
     }
+    if (
+      addingToPublishedLitter &&
+      lockedSpecies &&
+      species !== lockedSpecies
+    ) {
+      fail(
+        lockedSpecies === "dog"
+          ? "Esta camada es de perros: no puedes mezclar con gatos."
+          : "Esta camada es de gatos: no puedes mezclar con perros.",
+        "field-species",
+      );
+      return;
+    }
     if (!sex) {
       fail("Indica el sexo de la mascota.", "field-sex");
       return;
@@ -684,6 +733,14 @@ export function CreatePetScreen({
       return;
     }
     if (
+      addingToPublishedLitter &&
+      isLitterMother &&
+      motherTaken
+    ) {
+      fail("Ya hay una mamá marcada en esta camada.", "field-mother");
+      return;
+    }
+    if (
       editingFromLitterCart &&
       litterCartFromBack &&
       isLitterMother &&
@@ -761,6 +818,34 @@ export function CreatePetScreen({
         return;
       }
 
+      if (addingToPublishedLitter && publishedLitterGroupId) {
+        await createPet({
+          name: trimmedName,
+          ageYears: years,
+          ageMonths: months,
+          ageUnknown,
+          isLitterMother,
+          species,
+          sex,
+          size,
+          breed: breed || undefined,
+          vaccinated,
+          sterilized,
+          dewormed,
+          contactPhone: fullPhone,
+          city: city.trim(),
+          municipality: municipality.trim(),
+          description: description.trim() || undefined,
+          diseases: diseases.trim() || undefined,
+          caseKind: "litter",
+          litterGroupId: publishedLitterGroupId,
+          photos: photoFiles,
+          medicalExams: medicalExamFiles,
+        });
+        router.replace(`/adopta/camadas/${publishedLitterGroupId}`);
+        return;
+      }
+
       await createPet({
         name: trimmedName,
         ageYears: years,
@@ -831,7 +916,7 @@ export function CreatePetScreen({
               <h1 className="text-[1.05rem] [font-weight:700]">
                 {isEdit
                   ? "Editar mascota"
-                  : isLitter
+                  : addingToPublishedLitter || isLitter
                     ? editingId
                       ? "Editar mascota"
                       : "Agregar a la camada"
@@ -840,9 +925,11 @@ export function CreatePetScreen({
               <p className="text-[0.75rem] text-white/85">
                 {isEdit
                   ? "Actualiza la ficha y guarda los cambios"
-                  : isLitter
-                    ? "Se guarda en tu camada"
-                    : "Completa la ficha y postea el caso"}
+                  : addingToPublishedLitter
+                    ? "Se publica directo en esta camada"
+                    : isLitter
+                      ? "Se guarda en tu camada"
+                      : "Completa la ficha y postea el caso"}
               </p>
             </div>
           </div>
@@ -929,7 +1016,7 @@ export function CreatePetScreen({
                     Gato
                   </Chip>
                 </div>
-                {isLitter && lockedSpecies ? (
+                {(isLitter || addingToPublishedLitter) && lockedSpecies ? (
                   <p className="mt-1.5 text-[0.72rem] text-[var(--color-text-muted)]">
                     La camada ya es de{" "}
                     {lockedSpecies === "dog" ? "perros" : "gatos"}; no se puede
@@ -1473,14 +1560,16 @@ export function CreatePetScreen({
               {saving
                 ? isEdit
                   ? "Guardando..."
-                  : isLitter
-                    ? "Guardando..."
+                  : addingToPublishedLitter || isLitter
+                    ? "Publicando..."
                     : "Publicando..."
                 : isEdit
                   ? "Guardar cambios"
-                  : isLitter
-                    ? "Guardar en camada"
-                    : "Postear caso"}
+                  : addingToPublishedLitter
+                    ? "Agregar a la camada"
+                    : isLitter
+                      ? "Guardar en camada"
+                      : "Postear caso"}
             </Button>
           </form>
         ) : null}

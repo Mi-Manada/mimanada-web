@@ -1,15 +1,30 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { AppChrome } from "@/components/app/AppChrome";
 import { Button } from "@/components/ui/Button";
+import { ImageCropModal } from "@/components/ui/ImageCropModal";
+import {
+  ImageSourceSheet,
+  prefersMobileImagePicker,
+} from "@/components/ui/ImageSourceSheet";
 import {
   ApiError,
   getMe,
+  mediaUrl,
+  peekMe,
   updateMe,
+  uploadIdentityPhoto,
   type AuthUser,
 } from "@/lib/api";
+
+function initialsFromName(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
+}
 
 function splitName(fullName: string) {
   const parts = fullName.trim().split(/\s+/).filter(Boolean);
@@ -92,14 +107,29 @@ async function reverseGeocode(lat: number, lon: number) {
 }
 
 export function MyDataScreen() {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [draft, setDraft] = useState<Draft | null>(null);
+  const cachedUser = peekMe();
+  const [user, setUser] = useState<AuthUser | null>(() => cachedUser);
+  const [draft, setDraft] = useState<Draft | null>(() =>
+    cachedUser ? toDraft(cachedUser) : null,
+  );
   const [editing, setEditing] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => cachedUser == null);
   const [saving, setSaving] = useState(false);
   const [locating, setLocating] = useState(false);
   const [error, setError] = useState("");
   const [savedFlash, setSavedFlash] = useState(false);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [photoError, setPhotoError] = useState("");
+  const [photoSourceOpen, setPhotoSourceOpen] = useState(false);
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
+  const [cropFileName, setCropFileName] = useState("perfil.jpg");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    return () => {
+      if (cropSrc?.startsWith("blob:")) URL.revokeObjectURL(cropSrc);
+    };
+  }, [cropSrc]);
 
   useEffect(() => {
     let cancelled = false;
@@ -132,6 +162,52 @@ export function MyDataScreen() {
     setDraft(toDraft(user));
     setError("");
     setEditing(false);
+  }
+
+  function openPhotoPicker() {
+    if (photoUploading) return;
+    setPhotoError("");
+    if (prefersMobileImagePicker()) {
+      setPhotoSourceOpen(true);
+      return;
+    }
+    fileInputRef.current?.click();
+  }
+
+  function onFilePicked(file: File | null) {
+    if (!file) return;
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    if (cropSrc?.startsWith("blob:")) URL.revokeObjectURL(cropSrc);
+    setCropFileName(file.name || "perfil.jpg");
+    setCropSrc(URL.createObjectURL(file));
+  }
+
+  function closeCrop() {
+    if (cropSrc?.startsWith("blob:")) URL.revokeObjectURL(cropSrc);
+    setCropSrc(null);
+  }
+
+  async function uploadProfilePhoto(file: File) {
+    setPhotoUploading(true);
+    setPhotoError("");
+    try {
+      const updated = await uploadIdentityPhoto("profile", file);
+      setUser(updated);
+      setDraft(toDraft(updated));
+    } catch (err) {
+      setPhotoError(
+        err instanceof ApiError
+          ? err.message
+          : "No se pudo subir la foto. Intenta de nuevo.",
+      );
+    } finally {
+      setPhotoUploading(false);
+    }
+  }
+
+  async function onCropConfirm(file: File) {
+    closeCrop();
+    await uploadProfilePhoto(file);
   }
 
   async function useCurrentLocation() {
@@ -316,6 +392,65 @@ export function MyDataScreen() {
         <section className="mx-auto w-full max-w-[80rem] flex-1 px-5 py-6 sm:px-8 lg:px-10">
           {loading ? (
             <p className="text-[0.9rem] text-[var(--color-text-muted)]">Cargando...</p>
+          ) : null}
+
+          {!loading && user ? (
+            <div className="mb-6 flex flex-col items-center">
+              <div className="relative">
+                <div className="flex h-[7.5rem] w-[7.5rem] items-center justify-center overflow-hidden rounded-full border-[3px] border-[var(--color-primary)]/25 bg-[#f3f3f3] text-[1.65rem] text-[var(--color-primary)] [font-weight:700]">
+                  {mediaUrl(user.profilePhotoUrl) ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={mediaUrl(user.profilePhotoUrl) ?? undefined}
+                      alt={user.fullName}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    initialsFromName(user.fullName)
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={openPhotoPicker}
+                  disabled={photoUploading}
+                  aria-label="Cambiar foto de perfil"
+                  className="absolute right-0.5 bottom-0.5 inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border-2 border-white bg-[var(--color-primary)] text-white shadow-sm transition hover:bg-[var(--color-primary-hover)] disabled:opacity-60"
+                >
+                  {photoUploading ? (
+                    <span className="h-3.5 w-3.5 animate-pulse rounded-full bg-white/90" />
+                  ) : (
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden>
+                      <path
+                        d="m4 20 4.6-1.1L19 8.5 15.5 5 5.1 15.4 4 20Z"
+                        stroke="currentColor"
+                        strokeWidth="1.9"
+                        strokeLinejoin="round"
+                      />
+                      <path
+                        d="m15.5 5 3.5 3.5"
+                        stroke="currentColor"
+                        strokeWidth="1.9"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                  )}
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  disabled={photoUploading}
+                  onChange={(e) => onFilePicked(e.target.files?.[0] ?? null)}
+                />
+              </div>
+              <p className="mt-2.5 text-[0.8rem] text-[var(--color-text-muted)]">
+                {photoUploading ? "Subiendo foto..." : "Toca el lápiz para cambiar tu foto"}
+              </p>
+              {photoError ? (
+                <p className="mt-1 text-[0.85rem] text-[var(--color-primary)]">{photoError}</p>
+              ) : null}
+            </div>
           ) : null}
 
           {!loading && !editing && user ? (
@@ -582,6 +717,25 @@ export function MyDataScreen() {
           ) : null}
         </section>
       </main>
+
+      {cropSrc ? (
+        <ImageCropModal
+          imageSrc={cropSrc}
+          fileName={cropFileName}
+          circular
+          title="Ajusta tu foto de perfil"
+          onCancel={closeCrop}
+          onConfirm={onCropConfirm}
+        />
+      ) : null}
+
+      <ImageSourceSheet
+        open={photoSourceOpen}
+        onClose={() => setPhotoSourceOpen(false)}
+        onFile={(file) => onFilePicked(file)}
+        title="Foto de perfil"
+        captureFacing="user"
+      />
     </AppChrome>
   );
 }

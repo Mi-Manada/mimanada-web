@@ -8,8 +8,10 @@ import { CatIcon, DogIcon, PawIcon } from "@/components/pets/PetIcons";
 import { PetImageGallery } from "@/components/pets/PetImageGallery";
 import {
   ApiError,
+  createAdoptionRequest,
   deletePet,
   getMe,
+  getMyAdoptionRequestForPet,
   getPet,
   getPetSiblings,
   getToken,
@@ -129,6 +131,9 @@ export function PetDetailScreen({
   const [favorited, setFavorited] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+  const [revealedPhone, setRevealedPhone] = useState<string | null>(null);
+  const [requestingContact, setRequestingContact] = useState(false);
+  const [requestError, setRequestError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -153,6 +158,8 @@ export function PetDetailScreen({
     setLoading(true);
     setError("");
     setLitterMates([]);
+    setRevealedPhone(null);
+    setRequestError("");
 
     getPet(petId)
       .then(async (data) => {
@@ -184,6 +191,23 @@ export function PetDetailScreen({
   }, [petId]);
 
   useEffect(() => {
+    let cancelled = false;
+    if (!pet || !getToken()) return;
+    getMyAdoptionRequestForPet(pet.id)
+      .then((request) => {
+        if (!cancelled && request?.contactPhone) {
+          setRevealedPhone(request.contactPhone);
+        }
+      })
+      .catch(() => {
+        /* sin solicitud previa */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [pet]);
+
+  useEffect(() => {
     if (!pet || !urlSlug) return;
     const canonical = petPath(pet);
     const current = `/adopta/${urlSlug}`;
@@ -213,7 +237,7 @@ export function PetDetailScreen({
   const location = pet ? formatPetLocation(pet) : "";
   const owner = pet?.owner ?? null;
   const ownerPhoto = mediaUrl(owner?.profilePhotoUrl);
-  const contactPhone = pet?.contactPhone || owner?.phone || null;
+  const contactPhone = revealedPhone;
   const isOwner = Boolean(meId && pet && meId === pet.ownerId);
   const description = pet?.description?.trim() || "";
   const diseases = pet?.diseases?.trim() || "";
@@ -237,6 +261,33 @@ export function PetDetailScreen({
     : pet?.species === "cat"
       ? "Este gatito pertenece a una camada"
       : "Este cachorro pertenece a una camada";
+
+  async function requestAdoptionContact(autoDial = false) {
+    if (!pet || requestingContact || isOwner) return;
+    if (!getToken()) {
+      router.push(`/login?next=${encodeURIComponent(petPath(pet))}`);
+      return;
+    }
+
+    setRequestingContact(true);
+    setRequestError("");
+    try {
+      const request = await createAdoptionRequest(pet.id);
+      const phone = request.contactPhone?.trim() || null;
+      setRevealedPhone(phone);
+      if (autoDial && phone) {
+        window.location.href = `tel:${phone}`;
+      }
+    } catch (err) {
+      setRequestError(
+        err instanceof ApiError
+          ? err.message
+          : "No se pudo enviar la solicitud de adopción.",
+      );
+    } finally {
+      setRequestingContact(false);
+    }
+  }
 
   async function handleDelete() {
     if (!pet || deleting) return;
@@ -670,19 +721,36 @@ export function PetDetailScreen({
                 </Link>
 
                 <div className="flex shrink-0 items-center gap-2">
-                  {contactPhone ? (
-                    <a
-                      href={`tel:${contactPhone}`}
-                      aria-label="Llamar"
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[var(--color-primary)] text-white transition hover:bg-[var(--color-primary-hover)]"
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
-                        <path
-                          d="M7.2 4.8c.4-.4 1-.5 1.5-.3l2.2.9c.5.2.8.7.7 1.2l-.4 2.1a1.1 1.1 0 0 1-.6.8l-1.3.6a11 11 0 0 0 5.1 5.1l.6-1.3c.2-.4.5-.6.8-.6l2.1-.4c.5-.1 1 .2 1.2.7l.9 2.2c.2.5.1 1.1-.3 1.5l-1.1 1.1c-.4.4-1 .6-1.6.5C10.5 18.7 5.3 13.5 4.3 7.5c-.1-.6.1-1.2.5-1.6L7.2 4.8Z"
-                          fill="currentColor"
-                        />
-                      </svg>
-                    </a>
+                  {!isOwner ? (
+                    contactPhone ? (
+                      <a
+                        href={`tel:${contactPhone}`}
+                        aria-label="Llamar"
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[var(--color-primary)] text-white transition hover:bg-[var(--color-primary-hover)]"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+                          <path
+                            d="M7.2 4.8c.4-.4 1-.5 1.5-.3l2.2.9c.5.2.8.7.7 1.2l-.4 2.1a1.1 1.1 0 0 1-.6.8l-1.3.6a11 11 0 0 0 5.1 5.1l.6-1.3c.2-.4.5-.6.8-.6l2.1-.4c.5-.1 1 .2 1.2.7l.9 2.2c.2.5.1 1.1-.3 1.5l-1.1 1.1c-.4.4-1 .6-1.6.5C10.5 18.7 5.3 13.5 4.3 7.5c-.1-.6.1-1.2.5-1.6L7.2 4.8Z"
+                            fill="currentColor"
+                          />
+                        </svg>
+                      </a>
+                    ) : (
+                      <button
+                        type="button"
+                        aria-label="Solicitar contacto"
+                        disabled={requestingContact}
+                        onClick={() => void requestAdoptionContact(true)}
+                        className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-[var(--color-primary)] text-white transition hover:bg-[var(--color-primary-hover)] disabled:opacity-60"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+                          <path
+                            d="M7.2 4.8c.4-.4 1-.5 1.5-.3l2.2.9c.5.2.8.7.7 1.2l-.4 2.1a1.1 1.1 0 0 1-.6.8l-1.3.6a11 11 0 0 0 5.1 5.1l.6-1.3c.2-.4.5-.6.8-.6l2.1-.4c.5-.1 1 .2 1.2.7l.9 2.2c.2.5.1 1.1-.3 1.5l-1.1 1.1c-.4.4-1 .6-1.6.5C10.5 18.7 5.3 13.5 4.3 7.5c-.1-.6.1-1.2.5-1.6L7.2 4.8Z"
+                            fill="currentColor"
+                          />
+                        </svg>
+                      </button>
+                    )
                   ) : null}
                   <Link
                     href={userPath(
@@ -714,22 +782,39 @@ export function PetDetailScreen({
               </div>
 
               {!isOwner ? (
-                contactPhone ? (
-                  <a
-                    href={`tel:${contactPhone}`}
-                    className="mt-6 flex h-12 w-full items-center justify-center rounded-full bg-[var(--color-primary)] text-[1rem] text-white [font-weight:800] transition hover:bg-[var(--color-primary-hover)]"
-                  >
-                    Adóptame
-                  </a>
-                ) : (
-                  <button
-                    type="button"
-                    disabled
-                    className="mt-6 flex h-12 w-full cursor-not-allowed items-center justify-center rounded-full bg-[#d8d8d8] text-[1rem] text-white [font-weight:800]"
-                  >
-                    Adóptame
-                  </button>
-                )
+                <div className="mt-6">
+                  {contactPhone ? (
+                    <a
+                      href={`tel:${contactPhone}`}
+                      className="flex h-12 w-full items-center justify-center rounded-full bg-[var(--color-primary)] text-[1rem] text-white [font-weight:800] transition hover:bg-[var(--color-primary-hover)]"
+                    >
+                      Llamar al publicador
+                    </a>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={requestingContact}
+                      onClick={() => void requestAdoptionContact(false)}
+                      className="flex h-12 w-full cursor-pointer items-center justify-center rounded-full bg-[var(--color-primary)] text-[1rem] text-white [font-weight:800] transition hover:bg-[var(--color-primary-hover)] disabled:opacity-60"
+                    >
+                      {requestingContact ? "Enviando solicitud..." : "Adóptame"}
+                    </button>
+                  )}
+                  {!contactPhone ? (
+                    <p className="mt-2 text-center text-[0.78rem] text-[var(--color-text-muted)]">
+                      El teléfono se muestra solo al solicitar la adopción.
+                    </p>
+                  ) : (
+                    <p className="mt-2 text-center text-[0.78rem] text-[var(--color-text-muted)]">
+                      Contacto desbloqueado tras tu solicitud: {contactPhone}
+                    </p>
+                  )}
+                  {requestError ? (
+                    <p className="mt-2 text-center text-[0.8rem] text-[var(--color-primary)]">
+                      {requestError}
+                    </p>
+                  ) : null}
+                </div>
               ) : null}
 
               {deleteError ? (

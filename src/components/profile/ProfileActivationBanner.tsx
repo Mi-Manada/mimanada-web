@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { getMe, type AuthUser } from "@/lib/api";
+import { getMe, peekMe, type AuthUser } from "@/lib/api";
 
 export function ProfileActivationBanner() {
-  const [user, setUser] = useState<AuthUser | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(() => peekMe());
 
   useEffect(() => {
     let cancelled = false;

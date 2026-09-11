@@ -28,11 +28,15 @@ export function LoginScreen() {
       const next = searchParams.get("next") || "/home";
       router.replace(next);
     } catch (err) {
-      const message =
-        err instanceof ApiError
-          ? err.message
-          : "No se pudo iniciar sesión. Intenta de nuevo.";
-      setError(message);
+      if (err instanceof ApiError) {
+        setError(err.message);
+      } else if (err instanceof TypeError) {
+        setError(
+          "No hay conexión con el servidor. Espera unos segundos e intenta de nuevo.",
+        );
+      } else {
+        setError("No se pudo iniciar sesión. Intenta de nuevo.");
+      }
     } finally {
       setLoading(false);
     }

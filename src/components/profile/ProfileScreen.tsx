@@ -7,7 +7,7 @@ import { AppChrome } from "@/components/app/AppChrome";
 import { ProfileActivationBanner } from "@/components/profile/ProfileActivationBanner";
 import { ProfileMenuIcon } from "@/components/profile/ProfilePageShell";
 import { Button } from "@/components/ui/Button";
-import { clearSession, getMe, mediaUrl, type AuthUser } from "@/lib/api";
+import { clearSession, getMe, mediaUrl, peekMe, type AuthUser } from "@/lib/api";
 
 type MenuItem = {
   title: string;
@@ -200,7 +200,7 @@ function userTypeLabel(type: AuthUser["userType"] | undefined) {
 
 export function ProfileScreen() {
   const router = useRouter();
-  const [user, setUser] = useState<AuthUser | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(() => peekMe());
 
   useEffect(() => {
     let cancelled = false;

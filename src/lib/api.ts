@@ -69,6 +69,25 @@ export function setSession(token: string) {
 export function clearSession() {
   localStorage.removeItem(TOKEN_KEY);
   document.cookie = "mimanada_token=; path=/; max-age=0; SameSite=Lax";
+  clearClientCaches();
+}
+
+let meCache: AuthUser | null = null;
+let meInflight: Promise<AuthUser> | null = null;
+
+export function clearClientCaches() {
+  meCache = null;
+  meInflight = null;
+  clearPublishedPetsCache();
+}
+
+export function peekMe(): AuthUser | null {
+  return meCache;
+}
+
+function setMeCache(user: AuthUser) {
+  meCache = user;
+  return user;
 }
 
 export async function apiFetch<T>(
@@ -138,7 +157,23 @@ export async function registerRequest(input: {
 }
 
 export async function getMe(): Promise<AuthUser> {
-  return apiFetch<AuthUser>("/auth/me");
+  if (meCache) {
+    if (!meInflight) {
+      meInflight = apiFetch<AuthUser>("/auth/me")
+        .then(setMeCache)
+        .finally(() => {
+          meInflight = null;
+        });
+    }
+    return meCache;
+  }
+  if (meInflight) return meInflight;
+  meInflight = apiFetch<AuthUser>("/auth/me")
+    .then(setMeCache)
+    .finally(() => {
+      meInflight = null;
+    });
+  return meInflight;
 }
 
 export async function updateMe(input: {
@@ -151,10 +186,11 @@ export async function updateMe(input: {
   latitude?: number;
   longitude?: number;
 }): Promise<AuthUser> {
-  return apiFetch<AuthUser>("/auth/me", {
+  const updated = await apiFetch<AuthUser>("/auth/me", {
     method: "PATCH",
     body: JSON.stringify(input),
   });
+  return setMeCache(updated);
 }
 
 export async function uploadIdentityPhoto(
@@ -163,10 +199,11 @@ export async function uploadIdentityPhoto(
 ): Promise<AuthUser> {
   const body = new FormData();
   body.append("file", file);
-  return apiFetch<AuthUser>(`/auth/me/photos/${kind}`, {
+  const updated = await apiFetch<AuthUser>(`/auth/me/photos/${kind}`, {
     method: "POST",
     body,
   });
+  return setMeCache(updated);
 }
 
 export async function changePasswordRequest(input: {
@@ -300,20 +337,24 @@ function appendPetFormData(input: CreatePetInput): FormData {
 }
 
 export async function createPet(input: CreatePetInput): Promise<Pet> {
-  return apiFetch<Pet>("/pets", {
+  const pet = await apiFetch<Pet>("/pets", {
     method: "POST",
     body: appendPetFormData(input),
   });
+  clearPublishedPetsCache();
+  return pet;
 }
 
 export async function updatePet(
   id: string,
   input: CreatePetInput,
 ): Promise<Pet> {
-  return apiFetch<Pet>(`/pets/${id}`, {
+  const pet = await apiFetch<Pet>(`/pets/${id}`, {
     method: "PATCH",
     body: appendPetFormData(input),
   });
+  clearPublishedPetsCache();
+  return pet;
 }
 
 export async function getMyPets(): Promise<Pet[]> {
@@ -321,17 +362,23 @@ export async function getMyPets(): Promise<Pet[]> {
 }
 
 export async function deletePet(id: string): Promise<{ ok: true }> {
-  return apiFetch<{ ok: true }>(`/pets/${id}`, { method: "DELETE" });
+  const result = await apiFetch<{ ok: true }>(`/pets/${id}`, {
+    method: "DELETE",
+  });
+  clearPublishedPetsCache();
+  return result;
 }
 
 export async function updatePetStatus(
   id: string,
   status: PetStatus,
 ): Promise<Pet> {
-  return apiFetch<Pet>(`/pets/${id}/status`, {
+  const pet = await apiFetch<Pet>(`/pets/${id}/status`, {
     method: "PATCH",
     body: JSON.stringify({ status }),
   });
+  clearPublishedPetsCache();
+  return pet;
 }
 
 export async function attachPetToLitter(
@@ -339,17 +386,53 @@ export async function attachPetToLitter(
   litterGroupId: string,
   isLitterMother?: boolean,
 ): Promise<Pet> {
-  return apiFetch<Pet>(`/pets/${petId}/litter`, {
+  const pet = await apiFetch<Pet>(`/pets/${petId}/litter`, {
     method: "PATCH",
     body: JSON.stringify({
       litterGroupId,
       ...(isLitterMother != null ? { isLitterMother } : {}),
     }),
   });
+  clearPublishedPetsCache();
+  return pet;
+}
+
+let publishedPetsCache: Pet[] | null = null;
+let publishedPetsInflight: Promise<Pet[]> | null = null;
+
+export function clearPublishedPetsCache() {
+  publishedPetsCache = null;
+  publishedPetsInflight = null;
+}
+
+export function peekPublishedPets(): Pet[] | null {
+  return publishedPetsCache;
 }
 
 export async function getPublishedPets(): Promise<Pet[]> {
-  return apiFetch<Pet[]>("/pets");
+  if (publishedPetsCache) {
+    if (!publishedPetsInflight) {
+      publishedPetsInflight = apiFetch<Pet[]>("/pets")
+        .then((pets) => {
+          publishedPetsCache = pets;
+          return pets;
+        })
+        .finally(() => {
+          publishedPetsInflight = null;
+        });
+    }
+    return publishedPetsCache;
+  }
+  if (publishedPetsInflight) return publishedPetsInflight;
+  publishedPetsInflight = apiFetch<Pet[]>("/pets")
+    .then((pets) => {
+      publishedPetsCache = pets;
+      return pets;
+    })
+    .finally(() => {
+      publishedPetsInflight = null;
+    });
+  return publishedPetsInflight;
 }
 
 export async function getPet(id: string): Promise<Pet> {
@@ -358,6 +441,49 @@ export async function getPet(id: string): Promise<Pet> {
 
 export async function getPetSiblings(id: string): Promise<Pet[]> {
   return apiFetch<Pet[]>(`/pets/${id}/siblings`);
+}
+
+export type AdoptionRequest = {
+  id: string;
+  petId: string;
+  requesterId: string;
+  ownerId: string;
+  message: string | null;
+  status: "pending" | "closed";
+  contactPhone: string | null;
+  createdAt: string;
+  updatedAt: string;
+  petName?: string | null;
+  requesterName?: string | null;
+  requesterPhone?: string | null;
+};
+
+export async function createAdoptionRequest(
+  petId: string,
+  message?: string,
+): Promise<AdoptionRequest> {
+  return apiFetch<AdoptionRequest>(`/pets/${petId}/adoption-requests`, {
+    method: "POST",
+    body: JSON.stringify(message ? { message } : {}),
+  });
+}
+
+export async function getMyAdoptionRequestForPet(
+  petId: string,
+): Promise<AdoptionRequest | null> {
+  return apiFetch<AdoptionRequest | null>(
+    `/pets/${petId}/adoption-requests/mine`,
+  );
+}
+
+export async function getSentAdoptionRequests(): Promise<AdoptionRequest[]> {
+  return apiFetch<AdoptionRequest[]>("/adoption-requests/sent");
+}
+
+export async function getReceivedAdoptionRequests(): Promise<
+  AdoptionRequest[]
+> {
+  return apiFetch<AdoptionRequest[]>("/adoption-requests/received");
 }
 
 export async function getPublicUser(id: string): Promise<PublicUserProfile> {

@@ -1,13 +1,15 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { CatIcon, DogIcon } from "@/components/pets/PetIcons";
-import type { PetSize, PetSpecies } from "@/lib/api";
+import { CatIcon, DogIcon, FemaleIcon, MaleIcon } from "@/components/pets/PetIcons";
+import type { PetSex, PetSize, PetSpecies } from "@/lib/api";
 
-export type AgeFilter = "young" | "adult";
+export type AgeFilter = "young" | "adult" | "senior";
+export type SexFilter = Exclude<PetSex, "unknown">;
 
 export type AdoptionFilters = {
   species: PetSpecies[];
+  sexes: SexFilter[];
   ages: AgeFilter[];
   sizes: Exclude<PetSize, "unknown">[];
   cities: string[];
@@ -19,6 +21,7 @@ export type AdoptionFilters = {
 
 export const EMPTY_ADOPTION_FILTERS: AdoptionFilters = {
   species: [],
+  sexes: [],
   ages: [],
   sizes: [],
   cities: [],
@@ -45,6 +48,19 @@ const SPECIES_OPTIONS: {
   },
 ];
 
+const SEX_OPTIONS: { value: SexFilter; label: string; icon: ReactNode }[] = [
+  {
+    value: "female",
+    label: "Hembra",
+    icon: <FemaleIcon size={15} />,
+  },
+  {
+    value: "male",
+    label: "Macho",
+    icon: <MaleIcon size={15} />,
+  },
+];
+
 const AGE_OPTIONS: { value: AgeFilter; label: string; icon: ReactNode }[] = [
   {
     value: "young",
@@ -55,6 +71,11 @@ const AGE_OPTIONS: { value: AgeFilter; label: string; icon: ReactNode }[] = [
     value: "adult",
     label: "Adultos",
     icon: <CalendarIcon />,
+  },
+  {
+    value: "senior",
+    label: "Mayores (7+ años)",
+    icon: <SeniorIcon />,
   },
 ];
 
@@ -167,6 +188,7 @@ function LocationSelect({
 export function countActiveAdoptionFilters(filters: AdoptionFilters): number {
   return (
     filters.species.length +
+    filters.sexes.length +
     filters.ages.length +
     filters.sizes.length +
     filters.cities.length +
@@ -227,6 +249,23 @@ export function AdoptionFiltersSidebar({
               onChange({
                 ...filters,
                 species: toggleValue(filters.species, option.value),
+              })
+            }
+          />
+        ))}
+      </FilterSection>
+
+      <FilterSection title="Género" icon={<GenderSectionIcon />}>
+        {SEX_OPTIONS.map((option) => (
+          <FilterCheckbox
+            key={option.value}
+            label={option.label}
+            icon={option.icon}
+            checked={filters.sexes.includes(option.value)}
+            onChange={() =>
+              onChange({
+                ...filters,
+                sexes: toggleValue(filters.sexes, option.value),
               })
             }
           />
@@ -367,6 +406,28 @@ function SpeciesSectionIcon() {
   );
 }
 
+function GenderSectionIcon() {
+  return (
+    <svg {...iconProps()}>
+      <circle cx="9" cy="10" r="3.2" stroke="currentColor" strokeWidth="1.8" />
+      <path
+        d="M9 13.2v5.2M7 15.8h4"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+      <circle cx="15.5" cy="14" r="2.8" stroke="currentColor" strokeWidth="1.8" />
+      <path
+        d="m17.4 12.1 2.8-2.8M17.8 9.3h2.4v2.4"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 function PawSmallIcon() {
   return (
     <svg {...iconProps()}>
@@ -385,6 +446,26 @@ function CalendarIcon() {
         d="M7 4v2M17 4v2M5.5 8h13M7 6h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z"
         stroke="currentColor"
         strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function SeniorIcon() {
+  return (
+    <svg {...iconProps()}>
+      <circle cx="12" cy="8" r="3.2" stroke="currentColor" strokeWidth="1.8" />
+      <path
+        d="M5.5 19.5c1.2-3.2 3.4-4.8 6.5-4.8s5.3 1.6 6.5 4.8"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+      <path
+        d="M15.8 6.2c.7-.9 1.9-1.2 2.8-.5"
+        stroke="currentColor"
+        strokeWidth="1.6"
         strokeLinecap="round"
       />
     </svg>

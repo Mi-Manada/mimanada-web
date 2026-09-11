@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
   type ReactNode,
+  type RefObject,
 } from "react";
 import { APP_NAV_ITEMS } from "@/components/app/nav-items";
 import {
@@ -325,6 +326,79 @@ function DiscoveryBanner({
   );
 }
 
+function CarouselArrow({
+  direction,
+  label,
+  onClick,
+  hidden,
+}: {
+  direction: "left" | "right";
+  label: string;
+  onClick: () => void;
+  hidden?: boolean;
+}) {
+  if (hidden) return null;
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      onClick={onClick}
+      className={`absolute top-1/2 z-10 hidden h-9 w-9 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-[#ececec] bg-white text-[var(--color-primary)] shadow-md transition hover:border-[var(--color-primary)] sm:inline-flex ${
+        direction === "left" ? "-left-1" : "-right-1"
+      }`}
+    >
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+        <path
+          d={direction === "left" ? "m15 5-7 7 7 7" : "m9 5 7 7-7 7"}
+          stroke="currentColor"
+          strokeWidth="2.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </button>
+  );
+}
+
+function useHorizontalScrollState(
+  ref: RefObject<HTMLDivElement | null>,
+  itemCount = 0,
+) {
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) {
+      setCanScrollLeft(false);
+      setCanScrollRight(false);
+      return;
+    }
+
+    const update = () => {
+      const maxScroll = el.scrollWidth - el.clientWidth;
+      setCanScrollLeft(el.scrollLeft > 4);
+      setCanScrollRight(maxScroll > 4 && el.scrollLeft < maxScroll - 4);
+    };
+
+    update();
+    // Recheck after layout paints cards
+    const raf = requestAnimationFrame(update);
+    el.addEventListener("scroll", update, { passive: true });
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    window.addEventListener("resize", update);
+    return () => {
+      cancelAnimationFrame(raf);
+      el.removeEventListener("scroll", update);
+      observer.disconnect();
+      window.removeEventListener("resize", update);
+    };
+  }, [ref, itemCount]);
+
+  return { canScrollLeft, canScrollRight };
+}
+
 function PetCarousel({
   id,
   title,
@@ -341,6 +415,10 @@ function PetCarousel({
   showLitterLink?: boolean;
 }) {
   const scrollerRef = useRef<HTMLDivElement>(null);
+  const { canScrollLeft, canScrollRight } = useHorizontalScrollState(
+    scrollerRef,
+    pets.length,
+  );
 
   if (pets.length === 0) {
     if (!emptyLabel) return null;
@@ -422,22 +500,20 @@ function PetCarousel({
         </div>
 
         {pets.length > 2 ? (
-          <button
-            type="button"
-            aria-label={`Ver más en ${title}`}
-            onClick={() => scroll(1)}
-            className="absolute top-1/2 -right-1 z-10 hidden h-9 w-9 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-[#ececec] bg-white text-[var(--color-primary)] shadow-md transition hover:border-[var(--color-primary)] sm:inline-flex"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
-              <path
-                d="m9 5 7 7-7 7"
-                stroke="currentColor"
-                strokeWidth="2.4"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
+          <>
+            <CarouselArrow
+              direction="left"
+              label={`Anterior en ${title}`}
+              onClick={() => scroll(-1)}
+              hidden={!canScrollLeft}
+            />
+            <CarouselArrow
+              direction="right"
+              label={`Siguiente en ${title}`}
+              onClick={() => scroll(1)}
+              hidden={!canScrollRight}
+            />
+          </>
         ) : null}
       </div>
     </section>
@@ -495,6 +571,11 @@ export function HomeScreen() {
     if (filter === "all") return pets;
     return pets.filter((pet) => pet.species === filter);
   }, [pets, filter]);
+
+  const {
+    canScrollLeft: canScrollSeekingLeft,
+    canScrollRight: canScrollSeekingRight,
+  } = useHorizontalScrollState(seekingScrollerRef, seekingHome.length);
 
   const nearby = useMemo(
     () => pets.filter((pet) => isNearUser(pet, user)),
@@ -688,22 +769,20 @@ export function HomeScreen() {
               </div>
 
               {seekingHome.length > 2 ? (
-                <button
-                  type="button"
-                  aria-label="Ver más mascotas"
-                  onClick={() => scrollSeeking(1)}
-                  className="absolute top-1/2 -right-1 z-10 hidden h-9 w-9 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-[#ececec] bg-white text-[var(--color-primary)] shadow-md transition hover:border-[var(--color-primary)] sm:inline-flex"
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
-                    <path
-                      d="m9 5 7 7-7 7"
-                      stroke="currentColor"
-                      strokeWidth="2.4"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </button>
+                <>
+                  <CarouselArrow
+                    direction="left"
+                    label="Anterior"
+                    onClick={() => scrollSeeking(-1)}
+                    hidden={!canScrollSeekingLeft}
+                  />
+                  <CarouselArrow
+                    direction="right"
+                    label="Siguiente"
+                    onClick={() => scrollSeeking(1)}
+                    hidden={!canScrollSeekingRight}
+                  />
+                </>
               ) : null}
             </div>
           ) : null}
@@ -720,7 +799,7 @@ export function HomeScreen() {
           <DiscoveryBanner
             href="/adopta?grupo=adultos"
             eyebrow="Adopta"
-            title="Peludos grandes buscando hogar"
+            title="Perros y Gatos adultos buscando hogar"
             imageSrc="/brand/home/adults.png"
             imageAlt="Gato adulto buscando un hogar"
           />

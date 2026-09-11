@@ -10,6 +10,7 @@ import {
   EMPTY_ADOPTION_FILTERS,
   type AdoptionFilters,
   type AgeFilter,
+  type SexFilter,
 } from "@/components/pets/AdoptionFiltersSidebar";
 import { PetCard } from "@/components/pets/PetCard";
 import { ProfileActivationBanner } from "@/components/profile/ProfileActivationBanner";
@@ -26,19 +27,29 @@ import {
   type PetSpecies,
 } from "@/lib/api";
 
+function petAgeYears(pet: Pet): number | null {
+  if (pet.ageUnknown) return null;
+  if (pet.ageYears == null && pet.ageMonths == null) return null;
+  if (pet.ageMonths != null) return pet.ageMonths / 12;
+  return pet.ageYears ?? 0;
+}
+
 function isYoungPet(pet: Pet) {
-  if (pet.ageUnknown) return false;
-  const years = pet.ageYears ?? 0;
-  const months = pet.ageMonths ?? 0;
-  if (pet.ageYears == null && pet.ageMonths == null) return false;
-  return years < 1 || (years === 0 && months < 12);
+  const years = petAgeYears(pet);
+  if (years == null) return false;
+  return years < 1;
 }
 
 function isAdultPet(pet: Pet) {
-  if (pet.ageUnknown) return true;
-  const years = pet.ageYears ?? 0;
-  if (pet.ageYears == null && pet.ageMonths == null) return true;
-  return years >= 1;
+  const years = petAgeYears(pet);
+  if (years == null) return true;
+  return years >= 1 && years < 7;
+}
+
+function isSeniorPet(pet: Pet) {
+  const years = petAgeYears(pet);
+  if (years == null) return false;
+  return years >= 7;
 }
 
 function parseListParam(value: string | null): string[] {
@@ -68,7 +79,8 @@ function filtersFromSearchParams(params: URLSearchParams): AdoptionFilters {
   );
 
   const agesFromParam = parseListParam(params.get("edad")).filter(
-    (value): value is AgeFilter => value === "young" || value === "adult",
+    (value): value is AgeFilter =>
+      value === "young" || value === "adult" || value === "senior",
   );
 
   const grupo = params.get("grupo");
@@ -76,13 +88,19 @@ function filtersFromSearchParams(params: URLSearchParams): AdoptionFilters {
   if (ages.length === 0) {
     if (grupo === "cachorros") ages = ["young"];
     else if (grupo === "adultos") ages = ["adult"];
+    else if (grupo === "mayores") ages = ["senior"];
   }
+
+  const sexes = parseListParam(params.get("genero")).filter(
+    (value): value is SexFilter => value === "female" || value === "male",
+  );
 
   const city = params.get("ciudad")?.trim();
   const municipality = params.get("municipio")?.trim();
 
   return {
     species,
+    sexes,
     ages,
     sizes: sizeValues,
     cities: city ? [city] : [],
@@ -93,11 +111,18 @@ function filtersFromSearchParams(params: URLSearchParams): AdoptionFilters {
   };
 }
 
+function ageToGrupo(age: AgeFilter): string {
+  if (age === "young") return "cachorros";
+  if (age === "senior") return "mayores";
+  return "adultos";
+}
+
 function filtersToSearchParams(filters: AdoptionFilters): URLSearchParams {
   const params = new URLSearchParams();
   if (filters.species.length) params.set("especie", filters.species.join(","));
+  if (filters.sexes.length) params.set("genero", filters.sexes.join(","));
   if (filters.ages.length === 1) {
-    params.set("grupo", filters.ages[0] === "young" ? "cachorros" : "adultos");
+    params.set("grupo", ageToGrupo(filters.ages[0]));
   } else if (filters.ages.length > 1) {
     params.set("edad", filters.ages.join(","));
   }
@@ -112,17 +137,25 @@ function filtersToSearchParams(filters: AdoptionFilters): URLSearchParams {
   return params;
 }
 
+function matchesAgeFilter(pet: Pet, age: AgeFilter) {
+  if (age === "young") return isYoungPet(pet);
+  if (age === "senior") return isSeniorPet(pet);
+  return isAdultPet(pet);
+}
+
 function matchesFilters(pet: Pet, filters: AdoptionFilters) {
   if (filters.species.length && !filters.species.includes(pet.species)) {
     return false;
   }
 
+  if (filters.sexes.length) {
+    if (pet.sex === "unknown" || !filters.sexes.includes(pet.sex)) {
+      return false;
+    }
+  }
+
   if (filters.ages.length) {
-    const young = isYoungPet(pet);
-    const adult = isAdultPet(pet);
-    const ageOk = filters.ages.some((age) =>
-      age === "young" ? young : adult,
-    );
+    const ageOk = filters.ages.some((age) => matchesAgeFilter(pet, age));
     if (!ageOk) return false;
   }
 
@@ -229,17 +262,23 @@ export default function AdoptaPageClient() {
     filters.ages.length === 1 && filters.ages[0] === "young";
   const onlyAdult =
     filters.ages.length === 1 && filters.ages[0] === "adult";
+  const onlySenior =
+    filters.ages.length === 1 && filters.ages[0] === "senior";
 
   const pageTitle = onlyYoung
     ? "Cachorros y gatitos"
     : onlyAdult
-      ? "Peludos grandes"
-      : "Adopta";
+      ? "Perros y Gatos adultos"
+      : onlySenior
+        ? "Mayores"
+        : "Adopta";
   const pageSubtitle = onlyYoung
     ? "Pequeños listos para crecer contigo."
     : onlyAdult
-      ? "Compañeros grandes buscando un hogar definitivo."
-      : "Mascotas en busca de un hogar.";
+      ? "Compañeros de 1 a 6 años buscando un hogar definitivo."
+      : onlySenior
+        ? "Peludos de 7 años o más listos para consentir."
+        : "Mascotas en busca de un hogar.";
 
   const sidebarProps = {
     filters,
@@ -351,8 +390,10 @@ export default function AdoptaPageClient() {
                     {onlyYoung
                       ? "Cachorros y gatitos"
                       : onlyAdult
-                        ? "Peludos grandes"
-                        : "Todas"}
+                        ? "Perros y Gatos adultos"
+                        : onlySenior
+                          ? "Mayores"
+                          : "Todas"}
                   </h2>
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
                     {filteredPets.map((pet) => (

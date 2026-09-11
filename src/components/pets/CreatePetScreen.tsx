@@ -40,6 +40,10 @@ import {
   type PetSpecies,
 } from "@/lib/api";
 import {
+  getMunicipalitiesByCity,
+  getVenezuelaCities,
+} from "@/lib/venezuela-locations";
+import {
   dataUrlToFile,
   filesToDataUrls,
   getLitterCart,
@@ -241,6 +245,12 @@ export function CreatePetScreen({
   const [lockedSpecies, setLockedSpecies] = useState<PetSpecies | null>(null);
   const [editCaseKind, setEditCaseKind] = useState<PetCaseKind | null>(null);
   const [editBackHref, setEditBackHref] = useState(backHrefProp ?? "/adopta");
+
+  const venezuelaCities = useMemo(() => getVenezuelaCities(), []);
+  const municipalityOptions = useMemo(
+    () => getMunicipalitiesByCity(city),
+    [city],
+  );
 
   const breeds = useMemo(() => {
     if (species === "cat") return CAT_BREEDS;
@@ -1454,23 +1464,50 @@ export function CreatePetScreen({
               </div>
               <label id="field-city" className="block">
                 <FieldLabel>Ciudad</FieldLabel>
-                <input
+                <select
                   value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  placeholder="Ej. Caracas"
-                  className={inputClass(errorField === "field-city")}
+                  onChange={(e) => {
+                    setCity(e.target.value);
+                    setMunicipality("");
+                  }}
+                  className={`${inputClass(errorField === "field-city")} cursor-pointer`}
                   required
-                />
+                >
+                  <option value="">Selecciona una ciudad</option>
+                  {city && !venezuelaCities.includes(city) ? (
+                    <option value={city}>{city}</option>
+                  ) : null}
+                  {venezuelaCities.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label id="field-municipality" className="block">
                 <FieldLabel>Municipio</FieldLabel>
-                <input
+                <select
                   value={municipality}
                   onChange={(e) => setMunicipality(e.target.value)}
-                  placeholder="Ej. Libertador"
-                  className={inputClass(errorField === "field-municipality")}
+                  disabled={!city}
+                  className={`${inputClass(errorField === "field-municipality")} cursor-pointer disabled:cursor-not-allowed disabled:opacity-60`}
                   required
-                />
+                >
+                  <option value="">
+                    {city
+                      ? "Selecciona un municipio"
+                      : "Primero elige una ciudad"}
+                  </option>
+                  {municipality &&
+                  !municipalityOptions.includes(municipality) ? (
+                    <option value={municipality}>{municipality}</option>
+                  ) : null}
+                  {municipalityOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
               </label>
             </Section>
 

@@ -18,6 +18,10 @@ import {
   uploadIdentityPhoto,
   type AuthUser,
 } from "@/lib/api";
+import {
+  getCitiesByState,
+  getVenezuelaStates,
+} from "@/lib/venezuela-locations";
 
 function initialsFromName(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -617,32 +621,70 @@ export function MyDataScreen() {
                   <span className="mb-1.5 block text-[0.8rem] text-[var(--color-text-muted)]">
                     Estado
                   </span>
-                  <input
+                  <select
                     value={draft.state}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      const nextState = e.target.value;
                       setDraft((prev) =>
-                        prev ? { ...prev, state: e.target.value } : prev,
-                      )
-                    }
-                    className="h-11 w-full rounded-[10px] border border-[#e8e8e8] bg-[#fafafa] px-3.5 text-[0.95rem] outline-none focus:border-[var(--color-primary)] focus:bg-white"
-                    placeholder="Ej. Miranda"
-                  />
+                        prev
+                          ? {
+                              ...prev,
+                              state: nextState,
+                              municipality: "",
+                            }
+                          : prev,
+                      );
+                    }}
+                    className="h-11 w-full cursor-pointer rounded-[10px] border border-[#e8e8e8] bg-[#fafafa] px-3.5 text-[0.95rem] outline-none focus:border-[var(--color-primary)] focus:bg-white"
+                  >
+                    <option value="">Selecciona un estado</option>
+                    {draft.state &&
+                    !getVenezuelaStates().includes(draft.state) ? (
+                      <option value={draft.state}>{draft.state}</option>
+                    ) : null}
+                    {getVenezuelaStates().map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
                 </label>
 
                 <label className="mb-4 block">
                   <span className="mb-1.5 block text-[0.8rem] text-[var(--color-text-muted)]">
                     Ciudad
                   </span>
-                  <input
+                  <select
                     value={draft.municipality}
                     onChange={(e) =>
                       setDraft((prev) =>
-                        prev ? { ...prev, municipality: e.target.value } : prev,
+                        prev
+                          ? { ...prev, municipality: e.target.value }
+                          : prev,
                       )
                     }
-                    className="h-11 w-full rounded-[10px] border border-[#e8e8e8] bg-[#fafafa] px-3.5 text-[0.95rem] outline-none focus:border-[var(--color-primary)] focus:bg-white"
-                    placeholder="Ej. Caracas"
-                  />
+                    disabled={!draft.state}
+                    className="h-11 w-full cursor-pointer rounded-[10px] border border-[#e8e8e8] bg-[#fafafa] px-3.5 text-[0.95rem] outline-none focus:border-[var(--color-primary)] focus:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <option value="">
+                      {draft.state
+                        ? "Selecciona una ciudad"
+                        : "Primero elige un estado"}
+                    </option>
+                    {draft.municipality &&
+                    !getCitiesByState(draft.state).includes(
+                      draft.municipality,
+                    ) ? (
+                      <option value={draft.municipality}>
+                        {draft.municipality}
+                      </option>
+                    ) : null}
+                    {getCitiesByState(draft.state).map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
                 </label>
 
                 <label className="block">

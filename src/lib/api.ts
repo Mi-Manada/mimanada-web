@@ -70,6 +70,11 @@ export function clearSession() {
   localStorage.removeItem(TOKEN_KEY);
   document.cookie = "mimanada_token=; path=/; max-age=0; SameSite=Lax";
   clearClientCaches();
+  if (typeof window !== "undefined") {
+    void import("@/lib/notifications-socket").then((mod) =>
+      mod.disconnectNotificationsSocket(),
+    );
+  }
 }
 
 let meCache: AuthUser | null = null;
@@ -443,13 +448,19 @@ export async function getPetSiblings(id: string): Promise<Pet[]> {
   return apiFetch<Pet[]>(`/pets/${id}/siblings`);
 }
 
+export type AdoptionRequestStatus =
+  | "pending"
+  | "accepted"
+  | "rejected"
+  | "closed";
+
 export type AdoptionRequest = {
   id: string;
   petId: string;
   requesterId: string;
   ownerId: string;
   message: string | null;
-  status: "pending" | "closed";
+  status: AdoptionRequestStatus;
   contactPhone: string | null;
   createdAt: string;
   updatedAt: string;
@@ -464,7 +475,7 @@ export async function createAdoptionRequest(
 ): Promise<AdoptionRequest> {
   return apiFetch<AdoptionRequest>(`/pets/${petId}/adoption-requests`, {
     method: "POST",
-    body: JSON.stringify(message ? { message } : {}),
+    body: JSON.stringify(message?.trim() ? { message: message.trim() } : {}),
   });
 }
 
@@ -484,6 +495,51 @@ export async function getReceivedAdoptionRequests(): Promise<
   AdoptionRequest[]
 > {
   return apiFetch<AdoptionRequest[]>("/adoption-requests/received");
+}
+
+export async function updateAdoptionRequestStatus(
+  id: string,
+  status: Exclude<AdoptionRequestStatus, "pending">,
+): Promise<AdoptionRequest> {
+  return apiFetch<AdoptionRequest>(`/adoption-requests/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
+}
+
+export type AppNotification = {
+  id: string;
+  type: "adoption_request" | "adoption_accepted" | "adoption_rejected";
+  title: string;
+  body: string;
+  linkHref: string | null;
+  petId: string | null;
+  petPhotoUrl?: string | null;
+  adoptionRequestId: string | null;
+  readAt: string | null;
+  createdAt: string;
+};
+
+export async function getNotifications(limit = 40): Promise<AppNotification[]> {
+  return apiFetch<AppNotification[]>(`/notifications?limit=${limit}`);
+}
+
+export async function getUnreadNotificationCount(): Promise<{ count: number }> {
+  return apiFetch<{ count: number }>("/notifications/unread-count");
+}
+
+export async function markNotificationRead(
+  id: string,
+): Promise<AppNotification | null> {
+  return apiFetch<AppNotification | null>(`/notifications/${id}/read`, {
+    method: "PATCH",
+  });
+}
+
+export async function markAllNotificationsRead(): Promise<{ ok: boolean }> {
+  return apiFetch<{ ok: boolean }>("/notifications/read-all", {
+    method: "POST",
+  });
 }
 
 export async function getPublicUser(id: string): Promise<PublicUserProfile> {

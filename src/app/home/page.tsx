@@ -6,7 +6,7 @@ import { ProfileActivationBanner } from "@/components/profile/ProfileActivationB
 
 export default function HomePage() {
   return (
-    <AppChrome hideHeader>
+    <AppChrome>
       <HomeScreen />
       <div className="mx-auto w-full max-w-[80rem] px-4 pb-6 sm:px-6 lg:px-8">
         <ProfileActivationBanner />

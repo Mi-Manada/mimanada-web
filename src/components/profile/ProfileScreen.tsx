@@ -143,8 +143,31 @@ const menuSections: MenuSection[] = [
         ),
       },
       {
+        title: "Notificaciones",
+        description: "Avisos de solicitudes de adopción",
+        href: "/perfil/notificaciones",
+        icon: (
+          <ProfileMenuIcon>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <path
+                d="M12 4.5a5 5 0 0 1 5 5v2.2c0 .8.3 1.5.8 2.1l.9 1.1c.7.8.1 2.1-1 2.1H6.3c-1.1 0-1.7-1.3-1-2.1l.9-1.1c.5-.6.8-1.3.8-2.1V9.5a5 5 0 0 1 5-5Z"
+                stroke="currentColor"
+                strokeWidth="1.7"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M10 18.8a2.2 2.2 0 0 0 4 0"
+                stroke="currentColor"
+                strokeWidth="1.7"
+                strokeLinecap="round"
+              />
+            </svg>
+          </ProfileMenuIcon>
+        ),
+      },
+      {
         title: "Solicitudes",
-        description: "Solicitudes enviadas o recibidas",
+        description: "Gestiona quién quiere adoptar",
         href: "/adopta/solicitudes",
         icon: (
           <ProfileMenuIcon>

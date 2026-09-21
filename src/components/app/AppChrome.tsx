@@ -1,10 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { APP_NAV_ITEMS } from "@/components/app/nav-items";
 import { SiteFooter } from "@/components/app/SiteFooter";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { getToken, getUnreadNotificationCount } from "@/lib/api";
+import { subscribeNotifications } from "@/lib/notifications-socket";
 
 function LogoMark() {
   return (
@@ -31,11 +34,17 @@ export function AppChrome({
   hideHeader?: boolean;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [unreadCount, setUnreadCount] = useState(0);
   const menuId = useId();
   const menuRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+
+  const handleUnreadChange = useCallback((count: number) => {
+    setUnreadCount(count);
+  }, []);
 
   useEffect(() => {
     setMenuOpen(false);
@@ -67,6 +76,42 @@ export function AppChrome({
     };
   }, [menuOpen]);
 
+  useEffect(() => {
+    let cancelled = false;
+    if (!getToken()) {
+      setUnreadCount(0);
+      return;
+    }
+
+    function refresh() {
+      getUnreadNotificationCount()
+        .then((data) => {
+          if (!cancelled) setUnreadCount(data.count);
+        })
+        .catch(() => {
+          if (!cancelled) setUnreadCount(0);
+        });
+    }
+
+    refresh();
+    const timer = window.setInterval(refresh, 90000);
+    const onFocus = () => refresh();
+    window.addEventListener("focus", onFocus);
+
+    const unsubscribe = subscribeNotifications(() => {
+      if (!cancelled) {
+        setUnreadCount((count) => count + 1);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      window.removeEventListener("focus", onFocus);
+      unsubscribe();
+    };
+  }, [pathname]);
+
   return (
     <div className="flex min-h-full flex-1 flex-col bg-[var(--color-bg)] lg:min-h-[100dvh]">
       {!hideHeader ? (
@@ -78,6 +123,8 @@ export function AppChrome({
               className="ml-auto flex min-w-0 flex-1 justify-end sm:max-w-[18rem] md:max-w-[22rem] lg:max-w-[26rem]"
               onSubmit={(event) => {
                 event.preventDefault();
+                const q = query.trim();
+                router.push(q ? `/adopta?q=${encodeURIComponent(q)}` : "/adopta");
               }}
               role="search"
             >
@@ -102,6 +149,11 @@ export function AppChrome({
                 />
               </label>
             </form>
+
+            <NotificationBell
+              unreadCount={unreadCount}
+              onUnreadChange={handleUnreadChange}
+            />
 
             <div className="relative shrink-0">
               <button

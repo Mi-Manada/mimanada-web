@@ -134,6 +134,9 @@ export function PetDetailScreen({
   const [revealedPhone, setRevealedPhone] = useState<string | null>(null);
   const [requestingContact, setRequestingContact] = useState(false);
   const [requestError, setRequestError] = useState("");
+  const [requestModalOpen, setRequestModalOpen] = useState(false);
+  const [requestMessage, setRequestMessage] = useState("");
+  const [autoDialAfterRequest, setAutoDialAfterRequest] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -262,20 +265,32 @@ export function PetDetailScreen({
       ? "Este gatito pertenece a una camada"
       : "Este cachorro pertenece a una camada";
 
-  async function requestAdoptionContact(autoDial = false) {
+  function openAdoptionRequest(autoDial = false) {
     if (!pet || requestingContact || isOwner) return;
     if (!getToken()) {
       router.push(`/login?next=${encodeURIComponent(petPath(pet))}`);
       return;
     }
+    setAutoDialAfterRequest(autoDial);
+    setRequestMessage("");
+    setRequestError("");
+    setRequestModalOpen(true);
+  }
+
+  async function submitAdoptionRequest() {
+    if (!pet || requestingContact || isOwner) return;
 
     setRequestingContact(true);
     setRequestError("");
     try {
-      const request = await createAdoptionRequest(pet.id);
+      const request = await createAdoptionRequest(
+        pet.id,
+        requestMessage.trim() || undefined,
+      );
       const phone = request.contactPhone?.trim() || null;
       setRevealedPhone(phone);
-      if (autoDial && phone) {
+      setRequestModalOpen(false);
+      if (autoDialAfterRequest && phone) {
         window.location.href = `tel:${phone}`;
       }
     } catch (err) {
@@ -313,7 +328,11 @@ export function PetDetailScreen({
 
   return (
     <AppChrome>
-      <main className="mx-auto flex w-full max-w-[80rem] flex-1 flex-col pb-10">
+      <main
+        className={`mx-auto flex w-full max-w-[80rem] flex-1 flex-col ${
+          !loading && !error && pet && !isOwner ? "pb-24 lg:pb-10" : "pb-10"
+        }`}
+      >
         {loading ? (
           <p className="px-4 py-10 text-[0.9rem] text-[var(--color-text-muted)] sm:px-6">
             Cargando ficha...
@@ -333,258 +352,416 @@ export function PetDetailScreen({
         ) : null}
 
         {!loading && !error && pet ? (
-          <div className="grid gap-0 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,0.85fr)] lg:items-start lg:gap-6 lg:px-6 lg:pt-6 xl:px-8">
-            <PetImageGallery
-              photos={photos}
-              alt={pet.name}
-              topLeft={
-                <Link
-                  href="/adopta"
-                  aria-label="Volver"
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/35 text-white backdrop-blur-sm transition hover:bg-black/45"
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-                    <path
-                      d="M15 5 8 12l7 7"
-                      stroke="currentColor"
-                      strokeWidth="2.2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </Link>
-              }
-              topRight={
-                <button
-                  type="button"
-                  aria-label={favorited ? "Quitar de favoritos" : "Agregar a favoritos"}
-                  onClick={() => setFavorited((v) => !v)}
-                  className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-white/95 text-[var(--color-primary)] shadow-sm transition hover:scale-105"
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden>
-                    <path
-                      d="M12 20.2 4.8 13.4a4.4 4.4 0 0 1 6.2-6.2L12 5.4l.99 1.8a4.4 4.4 0 0 1 6.2 6.2L12 20.2Z"
-                      fill={favorited ? "currentColor" : "none"}
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </button>
-              }
-            />
+          <div className="lg:px-6 lg:pt-6 xl:px-8">
+            <div className="grid gap-0 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,0.85fr)] lg:items-start lg:gap-6">
+              <div className="order-1 min-w-0">
+              <PetImageGallery
+                photos={photos}
+                alt={pet.name}
+                topLeft={
+                  <Link
+                    href="/adopta"
+                    aria-label="Volver"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/35 text-white backdrop-blur-sm transition hover:bg-black/45"
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+                      <path
+                        d="M15 5 8 12l7 7"
+                        stroke="currentColor"
+                        strokeWidth="2.2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </Link>
+                }
+                topRight={
+                  <button
+                    type="button"
+                    aria-label={favorited ? "Quitar de favoritos" : "Agregar a favoritos"}
+                    onClick={() => setFavorited((v) => !v)}
+                    className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-white/95 text-[var(--color-primary)] shadow-sm transition hover:scale-105"
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden>
+                      <path
+                        d="M12 20.2 4.8 13.4a4.4 4.4 0 0 1 6.2-6.2L12 5.4l.99 1.8a4.4 4.4 0 0 1 6.2 6.2L12 20.2Z"
+                        fill={favorited ? "currentColor" : "none"}
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </button>
+                }
+              />
+              </div>
 
-            <section className="px-4 pt-5 sm:px-6 lg:px-0 lg:pt-2">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-start gap-2.5">
-                    <span className="mt-0.5 shrink-0 text-[var(--color-primary)]">
-                      {pet.species === "dog" ? (
-                        <DogIcon size={22} />
-                      ) : (
-                        <CatIcon size={22} />
-                      )}
-                    </span>
-                    <div className="min-w-0 pt-0.5">
-                      <h1 className="text-[1.2rem] leading-none text-[#4a4a4a] sm:text-[1.35rem]">
-                        ¡Hola! Soy{" "}
-                        <span className="text-[var(--color-primary)] [font-weight:800]">
-                          {pet.name}
+              <aside className="order-2 px-4 pt-5 sm:px-6 lg:sticky lg:top-24 lg:col-start-2 lg:row-span-2 lg:self-start lg:px-0 lg:pt-2">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start gap-2.5">
+                        <span className="mt-0.5 shrink-0 text-[var(--color-primary)]">
+                          {pet.species === "dog" ? (
+                            <DogIcon size={22} />
+                          ) : (
+                            <CatIcon size={22} />
+                          )}
                         </span>
-                      </h1>
-                      <p className="mt-2.5 flex items-center gap-1.5 text-[0.88rem] leading-none text-[#9a9a9a]">
-                        <svg
-                          width="14"
-                          height="14"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          aria-hidden
-                          className="shrink-0"
+                        <div className="min-w-0 pt-0.5">
+                          <h1 className="text-[1.25rem] leading-snug text-[#4a4a4a] sm:text-[1.45rem]">
+                            ¡Hola! Soy{" "}
+                            <span className="text-[var(--color-primary)] [font-weight:800]">
+                              {pet.name}
+                            </span>
+                          </h1>
+                          <p className="mt-3.5 flex items-center gap-1.5 text-[0.9rem] leading-none text-[#9a9a9a]">
+                            <svg
+                              width="14"
+                              height="14"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              aria-hidden
+                              className="shrink-0"
+                            >
+                              <path
+                                d="M12 21s-6-5.2-6-10a6 6 0 1 1 12 0c0 4.8-6 10-6 10Z"
+                                stroke="var(--color-primary)"
+                                strokeWidth="2"
+                                strokeLinejoin="round"
+                              />
+                              <circle cx="12" cy="11" r="2.1" fill="var(--color-primary)" />
+                            </svg>
+                            <span>{location}</span>
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex shrink-0 items-center gap-2">
+                      {isOwner ? (
+                        <>
+                          <Link
+                            href={petPath(pet, "/editar")}
+                            aria-label="Editar"
+                            title="Editar"
+                            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#ececec] bg-white text-[var(--color-primary)] shadow-sm transition hover:border-[var(--color-primary)] hover:bg-[#fde8ec]"
+                          >
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+                              <path
+                                d="M4 20h4l10.5-10.5a2.1 2.1 0 0 0-3-3L5 17v3Z"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                                strokeLinejoin="round"
+                              />
+                              <path
+                                d="m13.2 6.2 3.6 3.6"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                                strokeLinecap="round"
+                              />
+                            </svg>
+                          </Link>
+                          <button
+                            type="button"
+                            onClick={handleDelete}
+                            disabled={deleting}
+                            aria-label={deleting ? "Eliminando..." : "Borrar"}
+                            title="Borrar"
+                            className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-[var(--color-primary)] text-white shadow-sm transition hover:bg-[var(--color-primary-hover)] disabled:cursor-wait disabled:opacity-70"
+                          >
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+                              <path
+                                d="M5 7h14M10 7V5.8A1.8 1.8 0 0 1 11.8 4h.4A1.8 1.8 0 0 1 14 5.8V7M9 11v6M12 11v6M15 11v6"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                                strokeLinecap="round"
+                              />
+                              <path
+                                d="M7 7l.7 12.2A1.8 1.8 0 0 0 9.5 21h5a1.8 1.8 0 0 0 1.8-1.8L17 7"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                          </button>
+                        </>
+                      ) : null}
+                      {showLitterLink ? (
+                        <Link
+                          href={petPath(pet, "/hermanos")}
+                          className="rounded-full bg-[var(--color-primary)] px-4 py-2 text-[0.8rem] text-white [font-weight:700] transition hover:bg-[var(--color-primary-hover)]"
                         >
-                          <path
-                            d="M12 21s-6-5.2-6-10a6 6 0 1 1 12 0c0 4.8-6 10-6 10Z"
-                            stroke="var(--color-primary)"
-                            strokeWidth="2"
-                            strokeLinejoin="round"
-                          />
-                          <circle cx="12" cy="11" r="2.1" fill="var(--color-primary)" />
-                        </svg>
-                        <span>{location}</span>
-                      </p>
+                          {litterLinkLabel}
+                        </Link>
+                      ) : null}
                     </div>
                   </div>
-                </div>
 
-                <div className="flex shrink-0 items-center gap-2">
-                  {isOwner ? (
-                    <>
+                  <div className="mt-7 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    <AttrChip label={formatPetSex(pet.sex)} tone="blue" />
+                    <AttrChip label={pet.breed || formatPetSpecies(pet.species)} tone="peach" />
+                    <AttrChip label={formatPetAge(pet)} tone="yellow" />
+                    <AttrChip label={formatPetSize(pet.size)} tone="green" />
+                    <AttrChip label={formatPetSpecies(pet.species)} tone="lilac" />
+                  </div>
+
+                  <div className="mt-7 flex flex-col gap-3.5 border-y border-[#ececec] py-5 sm:flex-row sm:items-center sm:gap-4">
+                    <HealthItem label="Esterilizado" value={pet.sterilized} />
+                    <span className="hidden h-5 w-px bg-[#ececec] sm:block" aria-hidden />
+                    <HealthItem label="Desparasitado" value={pet.dewormed} />
+                    <span className="hidden h-5 w-px bg-[#ececec] sm:block" aria-hidden />
+                    <HealthItem label="Vacunas" value={pet.vaccinated} />
+                  </div>
+
+                  {!isOwner ? (
+                    <div className="mt-7">
+                      {contactPhone ? (
+                        <a
+                          href={`tel:${contactPhone}`}
+                          className="flex h-13 w-full items-center justify-center rounded-full bg-[var(--color-primary)] px-4 py-3.5 text-[1.05rem] text-white [font-weight:800] transition hover:bg-[var(--color-primary-hover)]"
+                        >
+                          Llamar al publicador
+                        </a>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={requestingContact}
+                          onClick={() => openAdoptionRequest(false)}
+                          className="flex w-full cursor-pointer items-center justify-center rounded-full bg-[var(--color-primary)] px-4 py-3.5 text-[1.05rem] text-white [font-weight:800] transition hover:bg-[var(--color-primary-hover)] disabled:opacity-60"
+                        >
+                          {requestingContact
+                            ? "Enviando solicitud..."
+                            : "Adóptame"}
+                        </button>
+                      )}
+                      {!contactPhone ? (
+                        <p className="mt-3 text-center text-[0.78rem] text-[var(--color-text-muted)]">
+                          Al solicitar se notifica al publicador y se liberan
+                          los datos de contacto para coordinar.
+                        </p>
+                      ) : (
+                        <p className="mt-3 text-center text-[0.78rem] text-[var(--color-text-muted)]">
+                          Contacto desbloqueado tras tu solicitud:{" "}
+                          {contactPhone}
+                        </p>
+                      )}
+                      {requestError && !requestModalOpen ? (
+                        <p className="mt-3 text-center text-[0.8rem] text-[var(--color-primary)]">
+                          {requestError}
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <div className="mt-7">
                       <Link
-                        href={petPath(pet, "/editar")}
-                        aria-label="Editar"
-                        title="Editar"
-                        className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#ececec] bg-white text-[var(--color-primary)] shadow-sm transition hover:border-[var(--color-primary)] hover:bg-[#fde8ec]"
+                        href="/adopta/solicitudes"
+                        className="flex w-full items-center justify-center rounded-full border border-[var(--color-primary)] px-4 py-3.5 text-[0.95rem] text-[var(--color-primary)] [font-weight:800] transition hover:bg-[var(--color-primary)]/5"
                       >
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+                        Ver solicitudes de adopción
+                      </Link>
+                    </div>
+                  )}
+
+                  <div className="mt-7 flex items-center gap-3">
+                    <Link
+                      href={userPath(
+                        {
+                          id: pet.ownerId,
+                          fullName: owner?.fullName ?? "protector",
+                        },
+                        { from: petPath(pet) },
+                      )}
+                      className="flex min-w-0 flex-1 items-center gap-3 rounded-2xl border border-[#ececec] px-3 py-2.5 transition hover:border-[var(--color-primary)]"
+                    >
+                      <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#e8e8e8] text-[#888]">
+                        {ownerPhoto ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={ownerPhoto}
+                            alt={owner?.fullName ?? "Publicador"}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
+                            <circle cx="12" cy="9" r="3.2" fill="currentColor" />
+                            <path
+                              d="M5.5 19c1.3-2.8 3.6-4.2 6.5-4.2s5.2 1.4 6.5 4.2"
+                              fill="currentColor"
+                            />
+                          </svg>
+                        )}
+                      </span>
+                      <p className="min-w-0 text-[0.88rem] leading-snug text-[#555]">
+                        {owner?.userType === "fundacion"
+                          ? "Refugiado en "
+                          : "Publicado por "}
+                        <span className="[font-weight:700]">
+                          {owner?.fullName ?? "protector"}
+                        </span>
+                      </p>
+                    </Link>
+
+                    <div className="flex shrink-0 items-center gap-2">
+                      {!isOwner ? (
+                        contactPhone ? (
+                          <a
+                            href={`tel:${contactPhone}`}
+                            aria-label="Llamar"
+                            className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[var(--color-primary)] text-white transition hover:bg-[var(--color-primary-hover)]"
+                          >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+                              <path
+                                d="M7.2 4.8c.4-.4 1-.5 1.5-.3l2.2.9c.5.2.8.7.7 1.2l-.4 2.1a1.1 1.1 0 0 1-.6.8l-1.3.6a11 11 0 0 0 5.1 5.1l.6-1.3c.2-.4.5-.6.8-.6l2.1-.4c.5-.1 1 .2 1.2.7l.9 2.2c.2.5.1 1.1-.3 1.5l-1.1 1.1c-.4.4-1 .6-1.6.5C10.5 18.7 5.3 13.5 4.3 7.5c-.1-.6.1-1.2.5-1.6L7.2 4.8Z"
+                                fill="currentColor"
+                              />
+                            </svg>
+                          </a>
+                        ) : (
+                          <button
+                            type="button"
+                            aria-label="Solicitar contacto"
+                            disabled={requestingContact}
+                            onClick={() => openAdoptionRequest(true)}
+                            className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-[var(--color-primary)] text-white transition hover:bg-[var(--color-primary-hover)] disabled:opacity-60"
+                          >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+                              <path
+                                d="M7.2 4.8c.4-.4 1-.5 1.5-.3l2.2.9c.5.2.8.7.7 1.2l-.4 2.1a1.1 1.1 0 0 1-.6.8l-1.3.6a11 11 0 0 0 5.1 5.1l.6-1.3c.2-.4.5-.6.8-.6l2.1-.4c.5-.1 1 .2 1.2.7l.9 2.2c.2.5.1 1.1-.3 1.5l-1.1 1.1c-.4.4-1 .6-1.6.5C10.5 18.7 5.3 13.5 4.3 7.5c-.1-.6.1-1.2.5-1.6L7.2 4.8Z"
+                                fill="currentColor"
+                              />
+                            </svg>
+                          </button>
+                        )
+                      ) : null}
+                      <Link
+                        href={userPath(
+                          {
+                            id: pet.ownerId,
+                            fullName: owner?.fullName ?? "protector",
+                          },
+                          { from: petPath(pet) },
+                        )}
+                        aria-label="Ver perfil del publicador"
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[var(--color-primary)] text-white transition hover:bg-[var(--color-primary-hover)]"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
                           <path
-                            d="M4 20h4l10.5-10.5a2.1 2.1 0 0 0-3-3L5 17v3Z"
+                            d="M5 18.5V7.8c0-.7.5-1.3 1.2-1.4l10.8-1.8c.9-.1 1.6.6 1.6 1.4v10.5c0 .7-.5 1.3-1.2 1.4L6.6 19.9A1.4 1.4 0 0 1 5 18.5Z"
                             stroke="currentColor"
-                            strokeWidth="1.8"
+                            strokeWidth="1.7"
                             strokeLinejoin="round"
                           />
                           <path
-                            d="m13.2 6.2 3.6 3.6"
+                            d="M9 10.2h6.2M9 13.2h4.2"
                             stroke="currentColor"
-                            strokeWidth="1.8"
+                            strokeWidth="1.7"
                             strokeLinecap="round"
                           />
                         </svg>
                       </Link>
-                      <button
-                        type="button"
-                        onClick={handleDelete}
-                        disabled={deleting}
-                        aria-label={deleting ? "Eliminando..." : "Borrar"}
-                        title="Borrar"
-                        className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-[var(--color-primary)] text-white shadow-sm transition hover:bg-[var(--color-primary-hover)] disabled:cursor-wait disabled:opacity-70"
-                      >
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-                          <path
-                            d="M5 7h14M10 7V5.8A1.8 1.8 0 0 1 11.8 4h.4A1.8 1.8 0 0 1 14 5.8V7M9 11v6M12 11v6M15 11v6"
-                            stroke="currentColor"
-                            strokeWidth="1.8"
-                            strokeLinecap="round"
-                          />
-                          <path
-                            d="M7 7l.7 12.2A1.8 1.8 0 0 0 9.5 21h5a1.8 1.8 0 0 0 1.8-1.8L17 7"
-                            stroke="currentColor"
-                            strokeWidth="1.8"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                      </button>
-                    </>
-                  ) : null}
-                  {showLitterLink ? (
-                    <Link
-                      href={petPath(pet, "/hermanos")}
-                      className="rounded-full bg-[var(--color-primary)] px-4 py-2 text-[0.8rem] text-white [font-weight:700] transition hover:bg-[var(--color-primary-hover)]"
-                    >
-                      {litterLinkLabel}
-                    </Link>
-                  ) : null}
-                </div>
-              </div>
-
-              <div className="mt-5 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-                <AttrChip label={formatPetSex(pet.sex)} tone="blue" />
-                <AttrChip label={pet.breed || formatPetSpecies(pet.species)} tone="peach" />
-                <AttrChip label={formatPetAge(pet)} tone="yellow" />
-                <AttrChip label={formatPetSize(pet.size)} tone="green" />
-                <AttrChip label={formatPetSpecies(pet.species)} tone="lilac" />
-              </div>
-
-              <div className="mt-5 flex flex-col gap-2.5 border-y border-[#ececec] py-3 sm:flex-row sm:items-center sm:gap-3 sm:py-3.5">
-                <HealthItem label="Esterilizado" value={pet.sterilized} />
-                <span className="hidden h-4 w-px bg-[#ececec] sm:block" aria-hidden />
-                <HealthItem label="Desparasitado" value={pet.dewormed} />
-                <span className="hidden h-4 w-px bg-[#ececec] sm:block" aria-hidden />
-                <HealthItem label="Vacunas" value={pet.vaccinated} />
-              </div>
-
-              <div className="mt-6 space-y-5">
-                <section>
-                  <h2 className="text-[0.95rem] text-[#4a4a4a] [font-weight:800]">
-                    Descripción
-                  </h2>
-                  {description ? (
-                    <p className="mt-2 whitespace-pre-wrap text-[0.9rem] leading-relaxed text-[#666]">
-                      {description}
-                    </p>
-                  ) : (
-                    <p className="mt-2 text-[0.85rem] text-[#9a9a9a]">
-                      Sin descripción por ahora.
-                    </p>
-                  )}
-                </section>
-
-                <section>
-                  <h2 className="text-[0.95rem] text-[#4a4a4a] [font-weight:800]">
-                    Enfermedades
-                  </h2>
-                  {diseases ? (
-                    <p className="mt-2 whitespace-pre-wrap text-[0.9rem] leading-relaxed text-[#666]">
-                      {diseases}
-                    </p>
-                  ) : (
-                    <p className="mt-2 text-[0.85rem] text-[#9a9a9a]">
-                      No se reportaron enfermedades.
-                    </p>
-                  )}
-                </section>
-
-                <section>
-                  <h2 className="text-[0.95rem] text-[#4a4a4a] [font-weight:800]">
-                    Exámenes médicos
-                  </h2>
-                  {medicalExams.length > 0 ? (
-                    <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-                      {medicalExams.map((exam, index) => (
-                        <a
-                          key={`${exam.href}-${index}`}
-                          href={exam.href}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="group relative overflow-hidden rounded-2xl border border-[#ececec] bg-[#fafafa] transition hover:border-[var(--color-primary)]"
-                        >
-                          {exam.isPdf ? (
-                            <div className="flex aspect-square flex-col items-center justify-center gap-2 px-3 text-center text-[#888]">
-                              <svg
-                                width="28"
-                                height="28"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                aria-hidden
-                              >
-                                <path
-                                  d="M7 3.5h7.2L19 8.3V20a1.5 1.5 0 0 1-1.5 1.5h-10A1.5 1.5 0 0 1 6 20V5a1.5 1.5 0 0 1 1-1.5Z"
-                                  stroke="currentColor"
-                                  strokeWidth="1.6"
-                                />
-                                <path
-                                  d="M14 3.5V8h5"
-                                  stroke="currentColor"
-                                  strokeWidth="1.6"
-                                  strokeLinejoin="round"
-                                />
-                              </svg>
-                              <span className="line-clamp-2 text-[0.72rem] [font-weight:600]">
-                                {exam.label}
-                              </span>
-                            </div>
-                          ) : (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={exam.href}
-                              alt={`Examen ${index + 1}`}
-                              className="aspect-square w-full object-cover transition group-hover:scale-[1.02]"
-                            />
-                          )}
-                          <span className="absolute inset-x-0 bottom-0 bg-black/45 px-2 py-1.5 text-center text-[0.68rem] text-white [font-weight:600]">
-                            Ver
-                          </span>
-                        </a>
-                      ))}
                     </div>
-                  ) : (
-                    <p className="mt-2 text-[0.85rem] text-[#9a9a9a]">
-                      No hay exámenes adjuntos.
+                  </div>
+
+                  {deleteError ? (
+                    <p className="mt-2 text-center text-[0.8rem] text-[var(--color-primary)] sm:text-left">
+                      {deleteError}
                     </p>
-                  )}
-                </section>
-              </div>
+                  ) : null}
+              </aside>
+
+            <div className="order-3 mt-6 space-y-5 px-4 pb-8 sm:px-6 lg:col-start-1 lg:mt-6 lg:px-0">
+              <section>
+                <h2 className="text-[0.95rem] text-[#4a4a4a] [font-weight:800]">
+                  Descripción
+                </h2>
+                {description ? (
+                  <p className="mt-2 whitespace-pre-wrap text-[0.9rem] leading-relaxed text-[#666]">
+                    {description}
+                  </p>
+                ) : (
+                  <p className="mt-2 text-[0.85rem] text-[#9a9a9a]">
+                    Sin descripción por ahora.
+                  </p>
+                )}
+              </section>
+
+              <section>
+                <h2 className="text-[0.95rem] text-[#4a4a4a] [font-weight:800]">
+                  Enfermedades
+                </h2>
+                {diseases ? (
+                  <p className="mt-2 whitespace-pre-wrap text-[0.9rem] leading-relaxed text-[#666]">
+                    {diseases}
+                  </p>
+                ) : (
+                  <p className="mt-2 text-[0.85rem] text-[#9a9a9a]">
+                    No se reportaron enfermedades.
+                  </p>
+                )}
+              </section>
+
+              <section>
+                <h2 className="text-[0.95rem] text-[#4a4a4a] [font-weight:800]">
+                  Exámenes médicos
+                </h2>
+                {medicalExams.length > 0 ? (
+                  <div className="mt-3 flex flex-col gap-2">
+                    {medicalExams.map((exam, index) => (
+                      <a
+                        key={`${exam.href}-${index}`}
+                        href={exam.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="group flex items-center gap-3 rounded-[12px] border border-[#ececec] bg-[#fafafa] px-3 py-2.5 transition hover:border-[var(--color-primary)]"
+                      >
+                        {exam.isPdf ? (
+                          <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-white text-[#888] shadow-sm">
+                            <svg
+                              width="20"
+                              height="20"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              aria-hidden
+                            >
+                              <path
+                                d="M7 3.5h7.2L19 8.3V20a1.5 1.5 0 0 1-1.5 1.5h-10A1.5 1.5 0 0 1 6 20V5a1.5 1.5 0 0 1 1-1.5Z"
+                                stroke="currentColor"
+                                strokeWidth="1.6"
+                              />
+                              <path
+                                d="M14 3.5V8h5"
+                                stroke="currentColor"
+                                strokeWidth="1.6"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                          </span>
+                        ) : (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={exam.href}
+                            alt={`Examen ${index + 1}`}
+                            className="h-10 w-10 shrink-0 rounded-[10px] object-cover"
+                          />
+                        )}
+                        <span className="min-w-0 flex-1 truncate text-[0.82rem] text-[#555] [font-weight:600]">
+                          {exam.label}
+                        </span>
+                        <span className="shrink-0 text-[0.78rem] text-[var(--color-primary)] [font-weight:700]">
+                          Ver
+                        </span>
+                      </a>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-2 text-[0.85rem] text-[#9a9a9a]">
+                    No hay exámenes adjuntos.
+                  </p>
+                )}
+              </section>
 
               {showLitterSection ? (
-                <section className="mt-6">
+                <section>
                   <div className="flex flex-wrap items-end justify-between gap-2">
                     <h2 className="text-[0.95rem] text-[#4a4a4a] [font-weight:800]">
                       {litterSectionTitle}
@@ -684,145 +861,90 @@ export function PetDetailScreen({
                   ) : null}
                 </section>
               ) : null}
+            </div>
+            </div>
 
-              <div className="mt-6 flex items-center gap-3">
-                <Link
-                  href={userPath(
-                    {
-                      id: pet.ownerId,
-                      fullName: owner?.fullName ?? "protector",
-                    },
-                    { from: petPath(pet) },
-                  )}
-                  className="flex min-w-0 flex-1 items-center gap-3 rounded-2xl border border-[#ececec] px-3 py-2.5 transition hover:border-[var(--color-primary)]"
+            {requestModalOpen ? (
+              <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center">
+                <div
+                  role="dialog"
+                  aria-modal
+                  aria-labelledby="adoption-request-title"
+                  className="w-full max-w-md rounded-[18px] bg-white p-5 shadow-xl"
                 >
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#e8e8e8] text-[#888]">
-                    {ownerPhoto ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={ownerPhoto}
-                        alt={owner?.fullName ?? "Publicador"}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
-                        <circle cx="12" cy="9" r="3.2" fill="currentColor" />
-                        <path
-                          d="M5.5 19c1.3-2.8 3.6-4.2 6.5-4.2s5.2 1.4 6.5 4.2"
-                          fill="currentColor"
-                        />
-                      </svg>
-                    )}
-                  </span>
-                  <p className="min-w-0 text-[0.88rem] leading-snug text-[#555]">
-                    {owner?.userType === "fundacion" ? "Refugiado en " : "Publicado por "}
-                    <span className="[font-weight:700]">{owner?.fullName ?? "protector"}</span>
-                  </p>
-                </Link>
-
-                <div className="flex shrink-0 items-center gap-2">
-                  {!isOwner ? (
-                    contactPhone ? (
-                      <a
-                        href={`tel:${contactPhone}`}
-                        aria-label="Llamar"
-                        className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[var(--color-primary)] text-white transition hover:bg-[var(--color-primary-hover)]"
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
-                          <path
-                            d="M7.2 4.8c.4-.4 1-.5 1.5-.3l2.2.9c.5.2.8.7.7 1.2l-.4 2.1a1.1 1.1 0 0 1-.6.8l-1.3.6a11 11 0 0 0 5.1 5.1l.6-1.3c.2-.4.5-.6.8-.6l2.1-.4c.5-.1 1 .2 1.2.7l.9 2.2c.2.5.1 1.1-.3 1.5l-1.1 1.1c-.4.4-1 .6-1.6.5C10.5 18.7 5.3 13.5 4.3 7.5c-.1-.6.1-1.2.5-1.6L7.2 4.8Z"
-                            fill="currentColor"
-                          />
-                        </svg>
-                      </a>
-                    ) : (
-                      <button
-                        type="button"
-                        aria-label="Solicitar contacto"
-                        disabled={requestingContact}
-                        onClick={() => void requestAdoptionContact(true)}
-                        className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-[var(--color-primary)] text-white transition hover:bg-[var(--color-primary-hover)] disabled:opacity-60"
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
-                          <path
-                            d="M7.2 4.8c.4-.4 1-.5 1.5-.3l2.2.9c.5.2.8.7.7 1.2l-.4 2.1a1.1 1.1 0 0 1-.6.8l-1.3.6a11 11 0 0 0 5.1 5.1l.6-1.3c.2-.4.5-.6.8-.6l2.1-.4c.5-.1 1 .2 1.2.7l.9 2.2c.2.5.1 1.1-.3 1.5l-1.1 1.1c-.4.4-1 .6-1.6.5C10.5 18.7 5.3 13.5 4.3 7.5c-.1-.6.1-1.2.5-1.6L7.2 4.8Z"
-                            fill="currentColor"
-                          />
-                        </svg>
-                      </button>
-                    )
-                  ) : null}
-                  <Link
-                    href={userPath(
-                      {
-                        id: pet.ownerId,
-                        fullName: owner?.fullName ?? "protector",
-                      },
-                      { from: petPath(pet) },
-                    )}
-                    aria-label="Ver perfil del publicador"
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[var(--color-primary)] text-white transition hover:bg-[var(--color-primary-hover)]"
+                  <h2
+                    id="adoption-request-title"
+                    className="text-[1.05rem] text-[#4a4a4a] [font-weight:800]"
                   >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
-                      <path
-                        d="M5 18.5V7.8c0-.7.5-1.3 1.2-1.4l10.8-1.8c.9-.1 1.6.6 1.6 1.4v10.5c0 .7-.5 1.3-1.2 1.4L6.6 19.9A1.4 1.4 0 0 1 5 18.5Z"
-                        stroke="currentColor"
-                        strokeWidth="1.7"
-                        strokeLinejoin="round"
-                      />
-                      <path
-                        d="M9 10.2h6.2M9 13.2h4.2"
-                        stroke="currentColor"
-                        strokeWidth="1.7"
-                        strokeLinecap="round"
-                      />
-                    </svg>
-                  </Link>
-                </div>
-              </div>
-
-              {!isOwner ? (
-                <div className="mt-6">
-                  {contactPhone ? (
-                    <a
-                      href={`tel:${contactPhone}`}
-                      className="flex h-12 w-full items-center justify-center rounded-full bg-[var(--color-primary)] text-[1rem] text-white [font-weight:800] transition hover:bg-[var(--color-primary-hover)]"
-                    >
-                      Llamar al publicador
-                    </a>
-                  ) : (
-                    <button
-                      type="button"
-                      disabled={requestingContact}
-                      onClick={() => void requestAdoptionContact(false)}
-                      className="flex h-12 w-full cursor-pointer items-center justify-center rounded-full bg-[var(--color-primary)] text-[1rem] text-white [font-weight:800] transition hover:bg-[var(--color-primary-hover)] disabled:opacity-60"
-                    >
-                      {requestingContact ? "Enviando solicitud..." : "Adóptame"}
-                    </button>
-                  )}
-                  {!contactPhone ? (
-                    <p className="mt-2 text-center text-[0.78rem] text-[var(--color-text-muted)]">
-                      El teléfono se muestra solo al solicitar la adopción.
-                    </p>
-                  ) : (
-                    <p className="mt-2 text-center text-[0.78rem] text-[var(--color-text-muted)]">
-                      Contacto desbloqueado tras tu solicitud: {contactPhone}
-                    </p>
-                  )}
+                    Solicitar adopción
+                    {pet ? ` de ${pet.name}` : ""}
+                  </h2>
+                  <p className="mt-1 text-[0.82rem] text-[var(--color-text-muted)]">
+                    El publicador recibirá una notificación. Al enviar se
+                    liberará su teléfono para que puedan coordinar.
+                  </p>
+                  <label className="mt-4 block">
+                    <span className="mb-1.5 block text-[0.8rem] text-[var(--color-text-muted)] [font-weight:600]">
+                      Mensaje (opcional)
+                    </span>
+                    <textarea
+                      value={requestMessage}
+                      onChange={(e) =>
+                        setRequestMessage(e.target.value.slice(0, 500))
+                      }
+                      rows={4}
+                      placeholder="Cuéntale por qué quieres adoptar..."
+                      className="w-full resize-none rounded-[12px] border border-[#e8e8e8] bg-[#fafafa] px-3.5 py-3 text-[0.9rem] outline-none focus:border-[var(--color-primary)] focus:bg-white"
+                    />
+                  </label>
                   {requestError ? (
-                    <p className="mt-2 text-center text-[0.8rem] text-[var(--color-primary)]">
+                    <p className="mt-2 text-[0.8rem] text-[var(--color-primary)]">
                       {requestError}
                     </p>
                   ) : null}
+                  <div className="mt-4 flex gap-2">
+                    <button
+                      type="button"
+                      disabled={requestingContact}
+                      onClick={() => setRequestModalOpen(false)}
+                      className="h-11 flex-1 rounded-full border border-[#e0e0e0] text-[0.9rem] text-[#555] [font-weight:700]"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      disabled={requestingContact}
+                      onClick={() => void submitAdoptionRequest()}
+                      className="h-11 flex-1 rounded-full bg-[var(--color-primary)] text-[0.9rem] text-white [font-weight:800] disabled:opacity-60"
+                    >
+                      {requestingContact ? "Enviando..." : "Enviar solicitud"}
+                    </button>
+                  </div>
                 </div>
-              ) : null}
+              </div>
+            ) : null}
 
-              {deleteError ? (
-                <p className="mt-2 text-center text-[0.8rem] text-[var(--color-primary)] sm:text-left">
-                  {deleteError}
-                </p>
-              ) : null}
-            </section>
+            {!isOwner ? (
+              <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[#ececec] bg-white/95 px-4 py-3 backdrop-blur-md lg:hidden">
+                {contactPhone ? (
+                  <a
+                    href={`tel:${contactPhone}`}
+                    className="flex h-12 w-full items-center justify-center rounded-full bg-[var(--color-primary)] text-[1rem] text-white [font-weight:800] shadow-[0_8px_20px_rgba(230,68,97,0.28)]"
+                  >
+                    Llamar al publicador
+                  </a>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={requestingContact}
+                    onClick={() => openAdoptionRequest(false)}
+                    className="flex h-12 w-full cursor-pointer items-center justify-center rounded-full bg-[var(--color-primary)] text-[1.05rem] text-white [font-weight:800] shadow-[0_8px_20px_rgba(230,68,97,0.28)] disabled:opacity-60"
+                  >
+                    {requestingContact ? "Enviando solicitud..." : "Adóptame"}
+                  </button>
+                )}
+              </div>
+            ) : null}
           </div>
         ) : null}
       </main>

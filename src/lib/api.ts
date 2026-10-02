@@ -17,6 +17,9 @@ export type AuthUser = {
   phone: string | null;
   age: number | null;
   userType: "persona" | "fundacion" | "proveedor";
+  role?: "user" | "admin";
+  accountStatus?: "active" | "warned" | "suspended" | "banned";
+  suspendedUntil?: string | null;
   emailConfirmed: boolean;
   state: string | null;
   municipality: string | null;
@@ -74,6 +77,7 @@ export function clearSession() {
     void import("@/lib/notifications-socket").then((mod) =>
       mod.disconnectNotificationsSocket(),
     );
+    void import("@/lib/favorites").then((mod) => mod.clearFavoriteIdsCache());
   }
 }
 
@@ -460,6 +464,7 @@ export type AdoptionRequest = {
   requesterId: string;
   ownerId: string;
   message: string | null;
+  responseMessage?: string | null;
   status: AdoptionRequestStatus;
   contactPhone: string | null;
   createdAt: string;
@@ -500,10 +505,16 @@ export async function getReceivedAdoptionRequests(): Promise<
 export async function updateAdoptionRequestStatus(
   id: string,
   status: Exclude<AdoptionRequestStatus, "pending">,
+  responseMessage?: string,
 ): Promise<AdoptionRequest> {
   return apiFetch<AdoptionRequest>(`/adoption-requests/${id}`, {
     method: "PATCH",
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({
+      status,
+      ...(responseMessage?.trim()
+        ? { responseMessage: responseMessage.trim() }
+        : {}),
+    }),
   });
 }
 
@@ -542,10 +553,282 @@ export async function markAllNotificationsRead(): Promise<{ ok: boolean }> {
   });
 }
 
+export async function getFavoritePets(): Promise<Pet[]> {
+  return apiFetch<Pet[]>("/favorites");
+}
+
+export async function getFavoriteIds(): Promise<string[]> {
+  const data = await apiFetch<{ ids: string[] }>("/favorites/ids");
+  return data.ids;
+}
+
+export async function getIsFavorite(
+  petId: string,
+): Promise<{ favorited: boolean }> {
+  return apiFetch<{ favorited: boolean }>(`/favorites/${petId}`);
+}
+
+export async function addFavorite(
+  petId: string,
+): Promise<{ ok: boolean; favorited: boolean }> {
+  return apiFetch<{ ok: boolean; favorited: boolean }>(`/favorites/${petId}`, {
+    method: "POST",
+  });
+}
+
+export async function removeFavorite(
+  petId: string,
+): Promise<{ ok: boolean; favorited: boolean }> {
+  return apiFetch<{ ok: boolean; favorited: boolean }>(`/favorites/${petId}`, {
+    method: "DELETE",
+  });
+}
+
 export async function getPublicUser(id: string): Promise<PublicUserProfile> {
   return apiFetch<PublicUserProfile>(`/users/${id}/public`);
 }
 
 export async function getHealth(): Promise<{ status: string }> {
   return apiFetch<{ status: string }>("/health");
+}
+
+/* ——— Admin / Moderación ——— */
+
+export type PetModerationStatus =
+  | "active"
+  | "needs_review"
+  | "hidden"
+  | "deleted"
+  | "blocked";
+
+export type ReportReason =
+  | "inappropriate"
+  | "not_pets"
+  | "spam"
+  | "false_info"
+  | "animal_abuse"
+  | "offensive_image"
+  | "other";
+
+export type ReportStatus =
+  | "pending"
+  | "reviewed"
+  | "dismissed"
+  | "action_taken";
+
+export type ModerationActionType =
+  | "POST_APPROVED"
+  | "POST_HIDDEN"
+  | "POST_DELETED"
+  | "POST_RESTORED"
+  | "POST_BLOCKED"
+  | "USER_WARNED"
+  | "USER_SUSPENDED"
+  | "USER_BANNED"
+  | "USER_REACTIVATED"
+  | "REPORT_DISMISSED"
+  | "REPORT_ACTION_TAKEN";
+
+export type AdminPet = {
+  id: string;
+  name: string;
+  description: string | null;
+  species: PetSpecies;
+  photoUrls: string[];
+  city: string | null;
+  municipality: string | null;
+  status: PetStatus;
+  moderationStatus: PetModerationStatus;
+  moderationScanStatus: string;
+  moderationData: Record<string, number> | null;
+  reportCount: number;
+  ownerId: string;
+  ownerName: string | null;
+  ownerEmail: string | null;
+  ownerPhotoUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+};
+
+export type AdminDashboard = {
+  totals: {
+    totalPets: number;
+    needsReview: number;
+    reported: number;
+    deleted: number;
+    activeUsers: number;
+    suspendedUsers: number;
+    pendingReports: number;
+  };
+  recentActivity: Array<{
+    id: string;
+    action: ModerationActionType;
+    reason: string | null;
+    createdAt: string;
+    adminName: string | null;
+    targetUserName: string | null;
+    petName: string | null;
+    petId: string | null;
+    targetUserId: string | null;
+  }>;
+};
+
+export type AdminPetDetail = {
+  pet: AdminPet;
+  petFull: {
+    ageYears: number | null;
+    ageMonths: number | null;
+    ageUnknown: boolean;
+    sex: PetSex;
+    size: PetSize;
+    breed: string | null;
+    diseases: string | null;
+    vaccinated: boolean | null;
+    sterilized: boolean | null;
+    dewormed: boolean | null;
+  };
+  reports: Array<{
+    id: string;
+    reason: ReportReason;
+    details: string | null;
+    status: ReportStatus;
+    createdAt: string;
+    reporterName: string | null;
+    reporterId: string;
+  }>;
+  history: Array<{
+    id: string;
+    action: ModerationActionType;
+    reason: string | null;
+    createdAt: string;
+    adminName: string | null;
+  }>;
+};
+
+export type AdminReport = {
+  id: string;
+  reason: ReportReason;
+  details: string | null;
+  status: ReportStatus;
+  createdAt: string;
+  petId: string;
+  petName: string | null;
+  petPhotoUrl: string | null;
+  reporterId: string;
+  reporterName: string | null;
+  ownerName: string | null;
+};
+
+export type AdminUserRow = {
+  id: string;
+  fullName: string;
+  email: string;
+  profilePhotoUrl: string | null;
+  role: "user" | "admin";
+  accountStatus: "active" | "warned" | "suspended" | "banned";
+  suspendedUntil: string | null;
+  warnCount: number;
+  createdAt: string;
+  publications: number;
+  reportsReceived: number;
+  deletedContent: number;
+};
+
+export type AdminHistoryRow = {
+  id: string;
+  action: ModerationActionType;
+  reason: string | null;
+  createdAt: string;
+  adminId: string;
+  adminName: string | null;
+  targetUserId: string | null;
+  targetUserName: string | null;
+  petId: string | null;
+  petName: string | null;
+  meta: Record<string, unknown> | null;
+};
+
+export async function reportPet(
+  petId: string,
+  reason: ReportReason,
+  details?: string,
+) {
+  return apiFetch<{ id: string }>(`/pets/${petId}/reports`, {
+    method: "POST",
+    body: JSON.stringify({ reason, details }),
+  });
+}
+
+export async function getAdminDashboard() {
+  return apiFetch<AdminDashboard>("/admin/dashboard");
+}
+
+export async function getAdminModerationPets(filter?: string) {
+  const qs = filter ? `?filter=${encodeURIComponent(filter)}` : "";
+  return apiFetch<AdminPet[]>(`/admin/moderation/pets${qs}`);
+}
+
+export async function getAdminPetDetail(id: string) {
+  return apiFetch<AdminPetDetail>(`/admin/moderation/pets/${id}`);
+}
+
+export async function setAdminPetStatus(
+  id: string,
+  status: PetModerationStatus,
+  reason?: string,
+) {
+  return apiFetch<AdminPetDetail>(`/admin/moderation/pets/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ status, reason }),
+  });
+}
+
+export async function getAdminReports(status?: ReportStatus) {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : "";
+  return apiFetch<AdminReport[]>(`/admin/reports${qs}`);
+}
+
+export async function dismissAdminReport(id: string, reason?: string) {
+  return apiFetch<{ id: string }>(`/admin/reports/${id}/dismiss`, {
+    method: "PATCH",
+    body: JSON.stringify({ reason }),
+  });
+}
+
+export async function getAdminUsers(q?: string) {
+  const qs = q ? `?q=${encodeURIComponent(q)}` : "";
+  return apiFetch<AdminUserRow[]>(`/admin/users${qs}`);
+}
+
+export async function moderateAdminUser(
+  id: string,
+  action: "warn" | "suspend" | "ban" | "reactivate",
+  options?: { days?: number | null; reason?: string },
+) {
+  return apiFetch<AdminUserRow>(`/admin/users/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      action,
+      days: options?.days,
+      reason: options?.reason,
+    }),
+  });
+}
+
+export async function getAdminHistory(filters?: {
+  action?: ModerationActionType;
+  adminId?: string;
+  userId?: string;
+  from?: string;
+  to?: string;
+}) {
+  const params = new URLSearchParams();
+  if (filters?.action) params.set("action", filters.action);
+  if (filters?.adminId) params.set("adminId", filters.adminId);
+  if (filters?.userId) params.set("userId", filters.userId);
+  if (filters?.from) params.set("from", filters.from);
+  if (filters?.to) params.set("to", filters.to);
+  const qs = params.toString() ? `?${params}` : "";
+  return apiFetch<AdminHistoryRow[]>(`/admin/history${qs}`);
 }

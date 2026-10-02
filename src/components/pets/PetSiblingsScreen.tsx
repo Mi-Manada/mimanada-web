@@ -10,9 +10,16 @@ import {
   ApiError,
   getPet,
   getPetSiblings,
+  getToken,
   mediaUrl,
   type Pet,
 } from "@/lib/api";
+import {
+  ensureFavoriteIds,
+  peekFavoriteIds,
+  subscribeFavoriteIds,
+  toggleFavoritePet,
+} from "@/lib/favorites";
 import { formatPetLocation } from "@/lib/pet-labels";
 import { petPath } from "@/lib/seo-urls";
 
@@ -30,6 +37,7 @@ export function PetSiblingsScreen({
   const [error, setError] = useState("");
   const [photoIndex, setPhotoIndex] = useState(0);
   const [favorited, setFavorited] = useState(false);
+  const [favoriteBusy, setFavoriteBusy] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -67,6 +75,49 @@ export function PetSiblingsScreen({
       router.replace(canonical);
     }
   }, [pet, urlSlug, router]);
+
+  useEffect(() => {
+    return subscribeFavoriteIds(() => {
+      if (!pet) return;
+      setFavorited(Boolean(peekFavoriteIds()?.has(pet.id)));
+    });
+  }, [pet]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!pet || !getToken()) {
+      setFavorited(false);
+      return;
+    }
+    ensureFavoriteIds()
+      .then((ids) => {
+        if (!cancelled) setFavorited(ids.has(pet.id));
+      })
+      .catch(() => {
+        if (!cancelled) setFavorited(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [pet]);
+
+  async function handleFavoriteToggle() {
+    if (!pet || favoriteBusy) return;
+    if (!getToken()) {
+      router.push(`/login?next=${encodeURIComponent(petPath(pet))}`);
+      return;
+    }
+    const next = !favorited;
+    setFavoriteBusy(true);
+    setFavorited(next);
+    try {
+      await toggleFavoritePet(pet.id, next);
+    } catch {
+      setFavorited(!next);
+    } finally {
+      setFavoriteBusy(false);
+    }
+  }
 
   const photos = useMemo(
     () =>
@@ -168,8 +219,9 @@ export function PetSiblingsScreen({
                 <button
                   type="button"
                   aria-label={favorited ? "Quitar de favoritos" : "Agregar a favoritos"}
-                  onClick={() => setFavorited((v) => !v)}
-                  className="absolute top-4 right-4 inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-[var(--color-primary)] text-white shadow-sm transition hover:scale-105"
+                  disabled={favoriteBusy}
+                  onClick={() => void handleFavoriteToggle()}
+                  className="absolute top-4 right-4 inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-[var(--color-primary)] text-white shadow-sm transition hover:scale-105 disabled:opacity-60"
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden>
                     <path

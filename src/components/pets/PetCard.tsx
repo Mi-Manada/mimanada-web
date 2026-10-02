@@ -1,9 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type MouseEvent, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState, type MouseEvent, type ReactNode } from "react";
 import { FemaleIcon, MaleIcon } from "@/components/pets/PetIcons";
-import { mediaUrl, type Pet, type PetSex } from "@/lib/api";
+import { getToken, mediaUrl, type Pet, type PetSex } from "@/lib/api";
+import {
+  ensureFavoriteIds,
+  peekFavoriteIds,
+  subscribeFavoriteIds,
+  toggleFavoritePet,
+} from "@/lib/favorites";
 import { petPath } from "@/lib/seo-urls";
 
 function SexBadge({ sex }: { sex: PetSex }) {
@@ -53,18 +60,62 @@ export function PetCard({
   onFavoriteToggle?: (next: boolean) => void;
   footer?: ReactNode;
 }) {
-  const [favoritedLocal, setFavoritedLocal] = useState(false);
-  const favorited = favoritedProp ?? favoritedLocal;
+  const router = useRouter();
+  const [favoritedLocal, setFavoritedLocal] = useState(() =>
+    Boolean(peekFavoriteIds()?.has(pet.id)),
+  );
+  const [busy, setBusy] = useState(false);
+  const controlled = favoritedProp !== undefined;
+  const favorited = controlled ? favoritedProp : favoritedLocal;
   const cover = mediaUrl(pet.photoUrls[0] ?? null);
   const location =
     [pet.municipality, pet.city].filter(Boolean).join(", ") || "Sin ubicación";
 
-  function toggleFavorite(event: MouseEvent) {
+  useEffect(() => {
+    if (controlled) return;
+    return subscribeFavoriteIds(() => {
+      setFavoritedLocal(Boolean(peekFavoriteIds()?.has(pet.id)));
+    });
+  }, [controlled, pet.id]);
+
+  useEffect(() => {
+    if (controlled || !getToken()) return;
+    let cancelled = false;
+    ensureFavoriteIds()
+      .then((ids) => {
+        if (!cancelled) setFavoritedLocal(ids.has(pet.id));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [controlled, pet.id]);
+
+  async function toggleFavorite(event: MouseEvent) {
     event.preventDefault();
     event.stopPropagation();
+    if (busy) return;
+
     const next = !favorited;
-    if (favoritedProp === undefined) setFavoritedLocal(next);
-    onFavoriteToggle?.(next);
+    if (!getToken()) {
+      router.push(`/login?next=${encodeURIComponent(petPath(pet))}`);
+      return;
+    }
+
+    if (onFavoriteToggle) {
+      onFavoriteToggle(next);
+      return;
+    }
+
+    setBusy(true);
+    setFavoritedLocal(next);
+    try {
+      await toggleFavoritePet(pet.id, next);
+    } catch {
+      setFavoritedLocal(!next);
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -90,9 +141,10 @@ export function PetCard({
         {showFavorite ? (
           <button
             type="button"
-            onClick={toggleFavorite}
+            onClick={(event) => void toggleFavorite(event)}
+            disabled={busy}
             aria-label={favorited ? "Quitar de favoritos" : "Agregar a favoritos"}
-            className="absolute top-2.5 right-2.5 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-white/95 text-[var(--color-primary)] shadow-sm transition hover:scale-105"
+            className="absolute top-2.5 right-2.5 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-white/95 text-[var(--color-primary)] shadow-sm transition hover:scale-105 disabled:opacity-60"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden>
               <path

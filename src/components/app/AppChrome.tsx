@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
-import { APP_NAV_ITEMS } from "@/components/app/nav-items";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { MobileBottomNav } from "@/components/app/MobileBottomNav";
 import { SiteFooter } from "@/components/app/SiteFooter";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { getToken, getUnreadNotificationCount } from "@/lib/api";
@@ -13,7 +13,7 @@ function LogoMark() {
   return (
     <Link
       href="/home"
-      className="flex shrink-0 items-center"
+      className="hidden shrink-0 items-center sm:flex"
       aria-label="Mi Manada - Inicio"
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -35,46 +35,12 @@ export function AppChrome({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [menuOpen, setMenuOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [unreadCount, setUnreadCount] = useState(0);
-  const menuId = useId();
-  const menuRef = useRef<HTMLDivElement>(null);
-  const buttonRef = useRef<HTMLButtonElement>(null);
 
   const handleUnreadChange = useCallback((count: number) => {
     setUnreadCount(count);
   }, []);
-
-  useEffect(() => {
-    setMenuOpen(false);
-  }, [pathname]);
-
-  useEffect(() => {
-    if (!menuOpen) return;
-
-    function onPointerDown(event: MouseEvent) {
-      const target = event.target as Node;
-      if (
-        menuRef.current?.contains(target) ||
-        buttonRef.current?.contains(target)
-      ) {
-        return;
-      }
-      setMenuOpen(false);
-    }
-
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setMenuOpen(false);
-    }
-
-    document.addEventListener("mousedown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [menuOpen]);
 
   useEffect(() => {
     let cancelled = false;
@@ -155,81 +121,29 @@ export function AppChrome({
               onUnreadChange={handleUnreadChange}
             />
 
-            <div className="relative shrink-0">
-              <button
-                ref={buttonRef}
-                type="button"
-                aria-label={menuOpen ? "Cerrar menú" : "Abrir menú"}
-                aria-expanded={menuOpen}
-                aria-controls={menuId}
-                onClick={() => setMenuOpen((open) => !open)}
-                className="flex h-10 w-10 items-center justify-center rounded-full text-white transition hover:bg-white/10"
-              >
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden>
-                  <path
-                    d="M4 7h16M4 12h16M4 17h16"
-                    stroke="currentColor"
-                    strokeWidth="2.2"
-                    strokeLinecap="round"
-                  />
-                </svg>
-              </button>
-
-              {menuOpen ? (
-                <div
-                  ref={menuRef}
-                  id={menuId}
-                  role="menu"
-                  className="absolute top-[calc(100%+0.55rem)] right-0 z-50 w-[15.5rem] overflow-hidden rounded-2xl border border-white/15 bg-[var(--color-primary)] py-2 shadow-[0_16px_40px_rgba(0,0,0,0.22)]"
-                >
-                  {APP_NAV_ITEMS.map((item) => {
-                    const active =
-                      item.enabled &&
-                      (pathname === item.href ||
-                        (item.href !== "/home" &&
-                          pathname.startsWith(`${item.href}/`)));
-                    const className = `flex w-full items-center gap-3 px-4 py-2.5 text-left text-[0.9rem] transition ${
-                      active
-                        ? "bg-white/15 text-[var(--color-accent-yellow)] [font-weight:700]"
-                        : "text-white/95 hover:bg-white/10 [font-weight:500]"
-                    } ${!item.enabled ? "cursor-default opacity-55" : ""}`;
-
-                    if (!item.enabled) {
-                      return (
-                        <span
-                          key={item.label}
-                          role="menuitem"
-                          className={className}
-                          aria-disabled
-                        >
-                          <span className="opacity-95">{item.icon}</span>
-                          {item.label}
-                        </span>
-                      );
-                    }
-
-                    return (
-                      <Link
-                        key={item.label}
-                        href={item.href}
-                        role="menuitem"
-                        className={className}
-                        onClick={() => setMenuOpen(false)}
-                      >
-                        <span className="opacity-95">{item.icon}</span>
-                        {item.label}
-                      </Link>
-                    );
-                  })}
-                </div>
-              ) : null}
-            </div>
+            <Link
+              href="/perfil"
+              aria-label="Ir a perfil"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white transition hover:bg-white/10"
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
+                <circle cx="12" cy="12" r="9.2" stroke="currentColor" strokeWidth="1.7" />
+                <circle cx="12" cy="9.2" r="3" fill="currentColor" />
+                <path
+                  d="M6.2 18.4c1.3-2.6 3.5-3.9 5.8-3.9s4.5 1.3 5.8 3.9"
+                  fill="currentColor"
+                />
+              </svg>
+            </Link>
           </div>
         </header>
       ) : null}
 
-      <div className="flex min-w-0 flex-1 flex-col">{children}</div>
-      <SiteFooter />
+      <div className="flex min-w-0 flex-1 flex-col pb-[calc(3.75rem+env(safe-area-inset-bottom))] lg:pb-0">
+        {children}
+        <SiteFooter />
+      </div>
+      <MobileBottomNav />
     </div>
   );
 }

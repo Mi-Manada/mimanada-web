@@ -1620,7 +1620,7 @@ export function CreatePetScreen({
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: "110%", opacity: 0 }}
               transition={{ type: "spring", stiffness: 420, damping: 32 }}
-              className="fixed inset-x-0 bottom-0 z-50 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2"
+              className="fixed inset-x-0 bottom-[calc(3.75rem+env(safe-area-inset-bottom))] z-50 px-4 pb-2 pt-2 lg:bottom-0 lg:pb-[max(1rem,env(safe-area-inset-bottom))]"
             >
               <div className="mx-auto flex max-w-[80rem] items-start gap-3 rounded-[14px] border border-[var(--color-primary)]/25 bg-white px-4 py-3.5 shadow-[0_-8px_30px_rgba(0,0,0,0.12)]">
                 <p className="min-w-0 flex-1 text-[0.88rem] leading-snug text-[var(--color-primary)] [font-weight:600]">

@@ -6,16 +6,11 @@ import {
   useMemo,
   useRef,
   useState,
-  type ReactNode,
   type RefObject,
 } from "react";
-import {
-  CamadaIcon,
-  CatIcon,
-  DogIcon,
-  MascotaIcon,
-} from "@/components/pets/PetIcons";
+import { CatIcon } from "@/components/pets/PetIcons";
 import { PetCard } from "@/components/pets/PetCard";
+import { ProfileActivationBanner } from "@/components/profile/ProfileActivationBanner";
 import {
   ApiError,
   getMe,
@@ -24,10 +19,7 @@ import {
   peekPublishedPets,
   type AuthUser,
   type Pet,
-  type PetSpecies,
 } from "@/lib/api";
-
-type SpeciesFilter = "all" | PetSpecies;
 
 const RECENT_DAYS = 14;
 
@@ -57,6 +49,13 @@ function isNearUser(pet: Pet, user: AuthUser | null) {
   return false;
 }
 
+/** Menos de 1 año (cachorros / gatitos jóvenes). */
+function isUnderOneYear(pet: Pet) {
+  if (pet.ageUnknown) return false;
+  const months = (pet.ageYears ?? 0) * 12 + (pet.ageMonths ?? 0);
+  return months >= 0 && months < 12;
+}
+
 function litterRepresentatives(pets: Pet[]): Pet[] {
   const groups = new Map<string, Pet[]>();
   for (const pet of pets) {
@@ -73,120 +72,6 @@ function litterRepresentatives(pets: Pet[]): Pet[] {
     reps.push(mother ?? members[0]);
   }
   return reps;
-}
-
-function SpeciesFilterButton({
-  active,
-  label,
-  iconBg,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  label: string;
-  iconBg: string;
-  onClick: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={`inline-flex h-11 cursor-pointer items-center gap-2.5 rounded-full border bg-white py-1 pr-4 pl-1.5 text-[0.92rem] text-[#6b6b6b] transition ${
-        active
-          ? "border-[var(--color-primary)] [font-weight:700]"
-          : "border-[#d8d8d8] [font-weight:600] hover:border-[#c4c4c4]"
-      }`}
-    >
-      <span
-        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white"
-        style={{ backgroundColor: iconBg }}
-        aria-hidden
-      >
-        {children}
-      </span>
-      {label}
-    </button>
-  );
-}
-
-function QuickAccessCard({
-  href,
-  title,
-  description,
-  icon,
-  accent,
-}: {
-  href: string;
-  title: string;
-  description: string;
-  icon: ReactNode;
-  accent: string;
-}) {
-  return (
-    <Link
-      href={href}
-      className="group flex min-w-[14.5rem] flex-1 items-start gap-3 rounded-[16px] border border-[#ececec] bg-white p-4 shadow-[0_2px_10px_rgba(0,0,0,0.04)] transition hover:border-[var(--color-primary)]/35 hover:shadow-[0_8px_22px_rgba(230,68,97,0.1)] sm:min-w-0"
-    >
-      <span
-        className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-white"
-        style={{ backgroundColor: accent }}
-        aria-hidden
-      >
-        {icon}
-      </span>
-      <span className="min-w-0 pt-0.5">
-        <span className="block text-[1rem] text-[#4a4a4a] [font-weight:800]">
-          {title}
-        </span>
-        <span className="mt-1 block text-[0.8rem] leading-snug text-[var(--color-text-muted)]">
-          {description}
-        </span>
-      </span>
-    </Link>
-  );
-}
-
-function DiscoveryBanner({
-  href,
-  eyebrow,
-  title,
-  imageSrc,
-  imageAlt,
-}: {
-  href: string;
-  eyebrow: string;
-  title: string;
-  imageSrc: string;
-  imageAlt: string;
-}) {
-  return (
-    <Link
-      href={href}
-      className="group grid min-h-[10.5rem] overflow-hidden rounded-[6px] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.08),0_2px_8px_rgba(0,0,0,0.06)] transition hover:shadow-[0_2px_4px_rgba(0,0,0,0.1),0_6px_16px_rgba(0,0,0,0.08)] sm:min-h-[11.5rem] sm:grid-cols-2"
-    >
-      <span className="flex flex-col justify-center gap-3 px-5 py-5 sm:px-6">
-        <span className="text-[0.72rem] tracking-[0.22em] text-[#9a9a9a] uppercase [font-weight:600]">
-          {eyebrow}
-        </span>
-        <span className="max-w-[13ch] text-[1.05rem] leading-[1.2] text-[#333] [font-weight:700] sm:text-[1.2rem]">
-          {title}
-        </span>
-        <span className="mt-1 inline-flex h-9 w-fit items-center rounded-[6px] bg-[var(--color-primary)] px-4 text-[0.82rem] text-white [font-weight:600] transition group-hover:bg-[var(--color-primary-hover)]">
-          Ver más
-        </span>
-      </span>
-      <span className="relative min-h-[9rem] sm:min-h-0">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={imageSrc}
-          alt={imageAlt}
-          className="absolute inset-0 h-full w-full object-cover"
-        />
-      </span>
-    </Link>
-  );
 }
 
 function CarouselArrow({
@@ -245,7 +130,6 @@ function useHorizontalScrollState(
     };
 
     update();
-    // Recheck after layout paints cards
     const raf = requestAnimationFrame(update);
     el.addEventListener("scroll", update, { passive: true });
     const observer = new ResizeObserver(update);
@@ -269,6 +153,7 @@ function PetCarousel({
   pets,
   emptyLabel,
   showLitterLink = false,
+  accent,
 }: {
   id?: string;
   title: string;
@@ -276,6 +161,7 @@ function PetCarousel({
   pets: Pet[];
   emptyLabel?: string;
   showLitterLink?: boolean;
+  accent?: boolean;
 }) {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const { canScrollLeft, canScrollRight } = useHorizontalScrollState(
@@ -288,10 +174,16 @@ function PetCarousel({
     return (
       <section
         id={id}
-        className="rounded-[16px] border border-[#ececec] bg-white px-4 py-5 sm:px-5"
+        className={`rounded-[16px] border bg-white px-4 py-5 sm:px-5 ${
+          accent
+            ? "border-[var(--color-primary)]/25 bg-[var(--color-primary)]/[0.03]"
+            : "border-[#ececec]"
+        }`}
       >
         <div className="flex items-center justify-between gap-3">
-          <h3 className="text-[1.05rem] text-[#4a4a4a] [font-weight:800]">{title}</h3>
+          <h3 className="text-[1.05rem] text-[#4a4a4a] [font-weight:800]">
+            {title}
+          </h3>
           <Link
             href={href}
             className="text-[0.8rem] text-[var(--color-primary)] [font-weight:700]"
@@ -299,7 +191,9 @@ function PetCarousel({
             Ver más
           </Link>
         </div>
-        <p className="mt-3 text-[0.85rem] text-[var(--color-text-muted)]">{emptyLabel}</p>
+        <p className="mt-3 text-[0.85rem] text-[var(--color-text-muted)]">
+          {emptyLabel}
+        </p>
       </section>
     );
   }
@@ -316,7 +210,11 @@ function PetCarousel({
   return (
     <section
       id={id}
-      className="rounded-[16px] border border-[#ececec] bg-white px-4 py-5 sm:px-5"
+      className={`rounded-[16px] border bg-white px-4 py-5 sm:px-5 ${
+        accent
+          ? "border-[var(--color-primary)]/25 bg-[var(--color-primary)]/[0.03]"
+          : "border-[#ececec]"
+      }`}
     >
       <div className="flex items-center justify-between gap-3">
         <h3 className="min-w-0 text-[1.05rem] text-[#4a4a4a] [font-weight:800] sm:text-[1.15rem]">
@@ -390,8 +288,6 @@ export function HomeScreen() {
   const [user, setUser] = useState<AuthUser | null>(() => cachedUser);
   const [loading, setLoading] = useState(() => cachedPets == null);
   const [error, setError] = useState("");
-  const [filter, setFilter] = useState<SpeciesFilter>("all");
-  const seekingScrollerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -430,15 +326,27 @@ export function HomeScreen() {
     };
   }, []);
 
-  const seekingHome = useMemo(() => {
-    if (filter === "all") return pets;
-    return pets.filter((pet) => pet.species === filter);
-  }, [pets, filter]);
+  const cats = useMemo(
+    () => pets.filter((pet) => pet.species === "cat"),
+    [pets],
+  );
 
-  const {
-    canScrollLeft: canScrollSeekingLeft,
-    canScrollRight: canScrollSeekingRight,
-  } = useHorizontalScrollState(seekingScrollerRef, seekingHome.length);
+  const dogs = useMemo(
+    () => pets.filter((pet) => pet.species === "dog"),
+    [pets],
+  );
+
+  const waitingLongest = useMemo(
+    () =>
+      [...pets]
+        .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt))
+        .slice(0, 4),
+    [pets],
+  );
+
+  const waitingTitle = waitingLongest[0]
+    ? `${waitingLongest[0].name} sigue esperando un hogar`
+    : "Siguen esperando un hogar";
 
   const nearby = useMemo(
     () => pets.filter((pet) => isNearUser(pet, user)),
@@ -455,18 +363,14 @@ export function HomeScreen() {
 
   const litters = useMemo(() => litterRepresentatives(pets), [pets]);
 
+  const youngOnes = useMemo(
+    () => pets.filter((pet) => isUnderOneYear(pet)),
+    [pets],
+  );
+
   const hasLocation = Boolean(
     user && (user.municipality?.trim() || user.state?.trim()),
   );
-
-  function scrollSeeking(direction: 1 | -1) {
-    const el = seekingScrollerRef.current;
-    if (!el) return;
-    el.scrollBy({
-      left: direction * Math.min(320, el.clientWidth * 0.75),
-      behavior: "smooth",
-    });
-  }
 
   return (
     <main className="flex min-h-full flex-1 flex-col bg-[#f5f5f5]">
@@ -484,7 +388,7 @@ export function HomeScreen() {
               href="/adopta"
               className="mt-6 inline-flex h-11 items-center justify-center rounded-full bg-white px-7 text-[0.95rem] text-[var(--color-primary)] [font-weight:800] shadow-sm transition hover:bg-white/95"
             >
-              Adoptar
+              Adopta
             </Link>
           </div>
 
@@ -521,170 +425,78 @@ export function HomeScreen() {
       </section>
 
       <div className="mx-auto flex w-full max-w-[80rem] flex-col gap-5 px-4 py-6 sm:px-6 lg:gap-6 lg:px-8 lg:py-8">
-        <section className="-mt-2 flex gap-3 overflow-x-auto pb-1 sm:grid sm:grid-cols-3 sm:overflow-visible sm:pb-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <QuickAccessCard
-            href="/adopta"
-            title="Adoptar"
-            description="Explora peludos que buscan familia"
-            accent="var(--color-primary)"
-            icon={<DogIcon size={22} />}
-          />
-          <QuickAccessCard
-            href="/adopta/nueva"
-            title="Dar en adopción"
-            description="Publica una mascota o una camada"
-            accent="#f0b429"
-            icon={<MascotaIcon size={22} />}
-          />
-          <QuickAccessCard
-            href="#camadas"
-            title="Camadas"
-            description="Hermanos y mamá listos para adoptar"
-            accent="#5c8fd6"
-            icon={<CamadaIcon size={22} />}
-          />
-        </section>
+        <ProfileActivationBanner />
 
-        <section className="rounded-[16px] border border-[#ececec] bg-white px-4 py-5 sm:px-5">
-          <h2 className="text-center text-[1.25rem] text-[#5F5B5B] [font-weight:800] sm:text-[1.4rem]">
-            Buscando una casa
-          </h2>
-
-          <div className="mt-5 flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setFilter("all")}
-              aria-pressed={filter === "all"}
-              className="inline-flex h-11 cursor-pointer items-center rounded-full border border-[var(--color-primary)] bg-[var(--color-primary)] px-4 text-[0.92rem] text-white [font-weight:700] transition hover:bg-[var(--color-primary-hover)]"
-            >
-              Todos
-            </button>
-            <SpeciesFilterButton
-              active={filter === "dog"}
-              label="Perros"
-              iconBg="var(--color-primary)"
-              onClick={() => setFilter("dog")}
-            >
-              <DogIcon size={18} />
-            </SpeciesFilterButton>
-            <SpeciesFilterButton
-              active={filter === "cat"}
-              label="Gatos"
-              iconBg="#f0b429"
-              onClick={() => setFilter("cat")}
-            >
-              <CatIcon size={18} />
-            </SpeciesFilterButton>
-
-            <Link
-              href="/adopta"
-              className="ml-auto inline-flex items-center gap-1.5 text-[0.85rem] text-[var(--color-primary)] [font-weight:700]"
-            >
-              Ver más
-              <span className="inline-flex h-6 w-6 items-center justify-center rounded-[6px] bg-[var(--color-primary)] text-white">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
-                  <path
-                    d="m9 5 7 7-7 7"
-                    stroke="currentColor"
-                    strokeWidth="2.4"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </span>
-            </Link>
-          </div>
-
-          {loading ? (
-            <p className="mt-6 text-[0.9rem] text-[var(--color-text-muted)]">
-              Cargando...
-            </p>
-          ) : null}
-
-          {error ? (
-            <p className="mt-6 text-[0.85rem] text-[var(--color-primary)]">{error}</p>
-          ) : null}
-
-          {!loading && !error && seekingHome.length === 0 ? (
-            <div className="mt-6 rounded-[14px] border border-dashed border-[#e4e4e4] bg-[#fafafa] px-4 py-10 text-center">
-              <p className="text-[0.95rem] text-[#555] [font-weight:700]">
-                No hay mascotas en este filtro
-              </p>
-              <p className="mt-1 text-[0.85rem] text-[var(--color-text-muted)]">
-                Prueba con Todos o revisa más tarde.
-              </p>
-            </div>
-          ) : null}
-
-          {!loading && seekingHome.length > 0 ? (
-            <div className="relative mt-5">
-              <div
-                ref={seekingScrollerRef}
-                className="flex gap-3 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-              >
-                {seekingHome.map((pet) => (
-                  <div key={pet.id} className="w-[11.5rem] shrink-0 sm:w-[13rem]">
-                    <PetCard pet={pet} />
-                  </div>
-                ))}
-              </div>
-
-              {seekingHome.length > 2 ? (
-                <>
-                  <CarouselArrow
-                    direction="left"
-                    label="Anterior"
-                    onClick={() => scrollSeeking(-1)}
-                    hidden={!canScrollSeekingLeft}
-                  />
-                  <CarouselArrow
-                    direction="right"
-                    label="Siguiente"
-                    onClick={() => scrollSeeking(1)}
-                    hidden={!canScrollSeekingRight}
-                  />
-                </>
-              ) : null}
-            </div>
-          ) : null}
-        </section>
-
-        <section className="grid gap-3 sm:grid-cols-2 sm:gap-4">
-          <DiscoveryBanner
-            href="/adopta?grupo=cachorros"
-            eyebrow="Descubre"
-            title="Adopta cachorros y gatitos"
-            imageSrc="/brand/home/puppies.png"
-            imageAlt="Perro y gato juntos listos para un hogar"
-          />
-          <DiscoveryBanner
-            href="/adopta?grupo=adultos"
-            eyebrow="Adopta"
-            title="Perros y Gatos adultos buscando hogar"
-            imageSrc="/brand/home/adults.png"
-            imageAlt="Gato adulto buscando un hogar"
-          />
-        </section>
-
-        {hasLocation ? (
-          <PetCarousel
-            title="Cerca de ti"
-            href="/adopta"
-            pets={nearby}
-            emptyLabel="Aún no hay publicaciones cerca de tu zona."
-          />
+        {loading ? (
+          <p className="text-[0.9rem] text-[var(--color-text-muted)]">
+            Cargando...
+          </p>
         ) : null}
 
-        <PetCarousel title="Recién publicados" href="/adopta" pets={recent} />
+        {error ? (
+          <p className="text-[0.85rem] text-[var(--color-primary)]">{error}</p>
+        ) : null}
 
-        <PetCarousel
-          id="camadas"
-          title="Camadas"
-          href="/adopta"
-          pets={litters}
-          showLitterLink
-          emptyLabel="Cuando haya camadas publicadas las verás aquí."
-        />
+        {!loading ? (
+          <>
+            <PetCarousel
+              title="Gatitos buscando hogar"
+              href="/adopta?especie=cat"
+              pets={cats}
+              emptyLabel="Aún no hay gatitos publicados."
+            />
+
+            <PetCarousel
+              title="Perritos buscando hogar"
+              href="/adopta?especie=dog"
+              pets={dogs}
+              emptyLabel="Aún no hay perritos publicados."
+            />
+
+            <PetCarousel
+              title={waitingTitle}
+              href="/adopta"
+              pets={waitingLongest}
+              accent
+              emptyLabel="Cuando haya publicaciones antiguas las verás aquí."
+            />
+
+            <PetCarousel
+              title="Cerca de ti"
+              href="/adopta"
+              pets={nearby}
+              emptyLabel={
+                hasLocation
+                  ? "Aún no hay publicaciones cerca de tu zona."
+                  : "Completa tu ubicación en el perfil para ver mascotas cerca."
+              }
+            />
+
+            <PetCarousel
+              title="Recién publicados"
+              href="/adopta"
+              pets={recent}
+              emptyLabel="No hay publicaciones recientes."
+            />
+
+            <PetCarousel
+              id="camadas"
+              title="Camadas"
+              href="/adopta"
+              pets={litters}
+              showLitterLink
+              emptyLabel="Cuando haya camadas publicadas las verás aquí."
+            />
+
+            <PetCarousel
+              title="Cachorros"
+              href="/adopta?grupo=cachorros"
+              pets={youngOnes}
+              accent
+              emptyLabel="No hay mascotas menores de 1 año por ahora."
+            />
+          </>
+        ) : null}
       </div>
     </main>
   );

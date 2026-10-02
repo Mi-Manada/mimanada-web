@@ -16,10 +16,18 @@ import {
   getPetSiblings,
   getToken,
   mediaUrl,
+  reportPet,
   type Pet,
   type AuthUser,
   type AdoptionRequest,
+  type ReportReason,
 } from "@/lib/api";
+import {
+  ensureFavoriteIds,
+  peekFavoriteIds,
+  subscribeFavoriteIds,
+  toggleFavoritePet,
+} from "@/lib/favorites";
 import {
   formatPetAge,
   formatPetLocation,
@@ -131,6 +139,7 @@ export function PetDetailScreen({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [favorited, setFavorited] = useState(false);
+  const [favoriteBusy, setFavoriteBusy] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   const [myRequest, setMyRequest] = useState<AdoptionRequest | null>(null);
@@ -139,6 +148,12 @@ export function PetDetailScreen({
   const [requestModalOpen, setRequestModalOpen] = useState(false);
   const [requestMessage, setRequestMessage] = useState("");
   const [requestSent, setRequestSent] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportReason, setReportReason] = useState<ReportReason | "">("");
+  const [reportDetails, setReportDetails] = useState("");
+  const [reportBusy, setReportBusy] = useState(false);
+  const [reportError, setReportError] = useState("");
+  const [reportDone, setReportDone] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -205,6 +220,31 @@ export function PetDetailScreen({
       })
       .catch(() => {
         if (!cancelled) setMyRequest(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [pet]);
+
+  useEffect(() => {
+    return subscribeFavoriteIds(() => {
+      if (!pet) return;
+      setFavorited(Boolean(peekFavoriteIds()?.has(pet.id)));
+    });
+  }, [pet]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!pet || !getToken()) {
+      setFavorited(false);
+      return;
+    }
+    ensureFavoriteIds()
+      .then((ids) => {
+        if (!cancelled) setFavorited(ids.has(pet.id));
+      })
+      .catch(() => {
+        if (!cancelled) setFavorited(false);
       });
     return () => {
       cancelled = true;
@@ -307,6 +347,54 @@ export function PetDetailScreen({
     }
   }
 
+  async function submitReport() {
+    if (!pet || reportBusy || isOwner) return;
+    if (!reportReason) {
+      setReportError("Selecciona un motivo.");
+      return;
+    }
+    if (reportReason === "other" && !reportDetails.trim()) {
+      setReportError("Describe el motivo del reporte.");
+      return;
+    }
+    setReportBusy(true);
+    setReportError("");
+    try {
+      await reportPet(
+        pet.id,
+        reportReason,
+        reportDetails.trim() || undefined,
+      );
+      setReportDone(true);
+    } catch (err) {
+      setReportError(
+        err instanceof ApiError
+          ? err.message
+          : "No se pudo enviar el reporte.",
+      );
+    } finally {
+      setReportBusy(false);
+    }
+  }
+
+  async function handleFavoriteToggle() {
+    if (!pet || favoriteBusy || isOwner) return;
+    if (!getToken()) {
+      router.push(`/login?next=${encodeURIComponent(petPath(pet))}`);
+      return;
+    }
+    const next = !favorited;
+    setFavoriteBusy(true);
+    setFavorited(next);
+    try {
+      await toggleFavoritePet(pet.id, next);
+    } catch {
+      setFavorited(!next);
+    } finally {
+      setFavoriteBusy(false);
+    }
+  }
+
   async function handleDelete() {
     if (!pet || deleting) return;
     const ok = window.confirm(
@@ -379,22 +467,27 @@ export function PetDetailScreen({
                   </Link>
                 }
                 topRight={
-                  <button
-                    type="button"
-                    aria-label={favorited ? "Quitar de favoritos" : "Agregar a favoritos"}
-                    onClick={() => setFavorited((v) => !v)}
-                    className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-white/95 text-[var(--color-primary)] shadow-sm transition hover:scale-105"
-                  >
-                    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden>
-                      <path
-                        d="M12 20.2 4.8 13.4a4.4 4.4 0 0 1 6.2-6.2L12 5.4l.99 1.8a4.4 4.4 0 0 1 6.2 6.2L12 20.2Z"
-                        fill={favorited ? "currentColor" : "none"}
-                        stroke="currentColor"
-                        strokeWidth="1.8"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </button>
+                  !isOwner ? (
+                    <button
+                      type="button"
+                      aria-label={
+                        favorited ? "Quitar de favoritos" : "Agregar a favoritos"
+                      }
+                      disabled={favoriteBusy}
+                      onClick={() => void handleFavoriteToggle()}
+                      className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-white/95 text-[var(--color-primary)] shadow-sm transition hover:scale-105 disabled:opacity-60"
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden>
+                        <path
+                          d="M12 20.2 4.8 13.4a4.4 4.4 0 0 1 6.2-6.2L12 5.4l.99 1.8a4.4 4.4 0 0 1 6.2 6.2L12 20.2Z"
+                          fill={favorited ? "currentColor" : "none"}
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </button>
+                  ) : null
                 }
               />
               </div>
@@ -545,6 +638,27 @@ export function PetDetailScreen({
                           {requestError}
                         </p>
                       ) : null}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!getToken()) {
+                            router.push(
+                              `/login?next=${encodeURIComponent(
+                                typeof window !== "undefined"
+                                  ? window.location.pathname
+                                  : "/adopta",
+                              )}`,
+                            );
+                            return;
+                          }
+                          setReportError("");
+                          setReportDone(false);
+                          setReportOpen(true);
+                        }}
+                        className="mt-4 w-full text-center text-[0.82rem] text-[#888] underline-offset-2 hover:text-[var(--color-primary)] hover:underline [font-weight:600]"
+                      >
+                        Reportar publicación
+                      </button>
                     </div>
                   ) : (
                     <div className="mt-7">
@@ -939,8 +1053,124 @@ export function PetDetailScreen({
               </div>
             ) : null}
 
+            {reportOpen ? (
+              <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center">
+                <div
+                  role="dialog"
+                  aria-modal
+                  aria-labelledby="report-pet-title"
+                  className="w-full max-w-md rounded-[18px] bg-white p-5 shadow-xl"
+                >
+                  {reportDone ? (
+                    <>
+                      <h2
+                        id="report-pet-title"
+                        className="text-[1.05rem] text-[#4a4a4a] [font-weight:800]"
+                      >
+                        Reporte enviado
+                      </h2>
+                      <p className="mt-2 text-[0.88rem] text-[var(--color-text-muted)]">
+                        Gracias. Nuestro equipo lo revisará en el panel de
+                        moderación.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setReportOpen(false)}
+                        className="mt-4 h-11 w-full rounded-full bg-[var(--color-primary)] text-[0.9rem] text-white [font-weight:800]"
+                      >
+                        Cerrar
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <h2
+                        id="report-pet-title"
+                        className="text-[1.05rem] text-[#4a4a4a] [font-weight:800]"
+                      >
+                        Reportar publicación
+                      </h2>
+                      <p className="mt-2 text-[0.85rem] text-[var(--color-text-muted)]">
+                        Selecciona el motivo. No puedes reportar la misma
+                        publicación más de una vez.
+                      </p>
+                      <div className="mt-4 space-y-2">
+                        {(
+                          [
+                            ["inappropriate", "Contenido inapropiado"],
+                            ["not_pets", "No tiene relación con mascotas"],
+                            ["spam", "Spam"],
+                            ["false_info", "Información falsa"],
+                            ["animal_abuse", "Maltrato animal"],
+                            ["offensive_image", "Imagen ofensiva"],
+                            ["other", "Otro"],
+                          ] as const
+                        ).map(([value, label]) => (
+                          <label
+                            key={value}
+                            className="flex cursor-pointer items-center gap-2 rounded-xl border border-[#ececec] px-3 py-2.5 text-[0.88rem]"
+                          >
+                            <input
+                              type="radio"
+                              name="report-reason"
+                              checked={reportReason === value}
+                              onChange={() => setReportReason(value)}
+                            />
+                            <span>{label}</span>
+                          </label>
+                        ))}
+                      </div>
+                      {reportReason === "other" ? (
+                        <textarea
+                          value={reportDetails}
+                          onChange={(e) =>
+                            setReportDetails(e.target.value.slice(0, 500))
+                          }
+                          rows={3}
+                          placeholder="Explica el motivo…"
+                          className="mt-3 w-full resize-none rounded-[12px] border border-[#e8e8e8] bg-[#fafafa] px-3.5 py-3 text-[0.9rem] outline-none focus:border-[var(--color-primary)]"
+                        />
+                      ) : (
+                        <textarea
+                          value={reportDetails}
+                          onChange={(e) =>
+                            setReportDetails(e.target.value.slice(0, 500))
+                          }
+                          rows={2}
+                          placeholder="Detalle opcional"
+                          className="mt-3 w-full resize-none rounded-[12px] border border-[#e8e8e8] bg-[#fafafa] px-3.5 py-3 text-[0.9rem] outline-none focus:border-[var(--color-primary)]"
+                        />
+                      )}
+                      {reportError ? (
+                        <p className="mt-2 text-[0.8rem] text-[var(--color-primary)]">
+                          {reportError}
+                        </p>
+                      ) : null}
+                      <div className="mt-4 flex gap-2">
+                        <button
+                          type="button"
+                          disabled={reportBusy}
+                          onClick={() => setReportOpen(false)}
+                          className="h-11 flex-1 rounded-full border border-[#e0e0e0] text-[0.9rem] text-[#555] [font-weight:700]"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          type="button"
+                          disabled={reportBusy}
+                          onClick={() => void submitReport()}
+                          className="h-11 flex-1 rounded-full bg-[var(--color-primary)] text-[0.9rem] text-white [font-weight:800] disabled:opacity-60"
+                        >
+                          {reportBusy ? "Enviando…" : "Enviar reporte"}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            ) : null}
+
             {!isOwner ? (
-              <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[#ececec] bg-white/95 px-4 py-3 backdrop-blur-md lg:hidden">
+              <div className="fixed inset-x-0 bottom-[calc(3.75rem+env(safe-area-inset-bottom))] z-40 border-t border-[#ececec] bg-white/95 px-4 py-3 backdrop-blur-md lg:bottom-0 lg:hidden">
                 {hasRequested ? (
                   <Link
                     href="/adopta/solicitudes"

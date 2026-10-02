@@ -127,6 +127,12 @@ export function AdoptionRequestsScreen() {
   const [error, setError] = useState("");
   const [actingId, setActingId] = useState<string | null>(null);
   const [tab, setTab] = useState<TabId>("received");
+  const [replyModal, setReplyModal] = useState<{
+    item: AdoptionRequest;
+    status: "accepted" | "rejected";
+  } | null>(null);
+  const [replyMessage, setReplyMessage] = useState("");
+  const [replyError, setReplyError] = useState("");
 
   const reload = useCallback(async () => {
     const [sentRows, receivedRows] = await Promise.all([
@@ -178,21 +184,38 @@ export function AdoptionRequestsScreen() {
   async function act(
     id: string,
     status: Exclude<AdoptionRequestStatus, "pending">,
+    responseMessage?: string,
   ) {
     setActingId(id);
     setError("");
+    setReplyError("");
     try {
-      await updateAdoptionRequestStatus(id, status);
+      await updateAdoptionRequestStatus(id, status, responseMessage);
+      setReplyModal(null);
+      setReplyMessage("");
       await reload();
     } catch (err) {
-      setError(
+      const message =
         err instanceof ApiError
           ? err.message
-          : "No se pudo actualizar la solicitud.",
-      );
+          : "No se pudo actualizar la solicitud.";
+      if (replyModal) {
+        setReplyError(message);
+      } else {
+        setError(message);
+      }
     } finally {
       setActingId(null);
     }
+  }
+
+  function openReplyModal(
+    item: AdoptionRequest,
+    status: "accepted" | "rejected",
+  ) {
+    setReplyModal({ item, status });
+    setReplyMessage("");
+    setReplyError("");
   }
 
   const pendingReceived = useMemo(
@@ -391,7 +414,7 @@ export function AdoptionRequestsScreen() {
                             <button
                               type="button"
                               disabled={actingId === item.id}
-                              onClick={() => void act(item.id, "accepted")}
+                              onClick={() => openReplyModal(item, "accepted")}
                               className="rounded-full bg-[var(--color-primary)] px-3 py-1.5 text-[0.78rem] text-white [font-weight:700] disabled:opacity-60"
                             >
                               Aceptar
@@ -399,22 +422,31 @@ export function AdoptionRequestsScreen() {
                             <button
                               type="button"
                               disabled={actingId === item.id}
-                              onClick={() => void act(item.id, "rejected")}
+                              onClick={() => openReplyModal(item, "rejected")}
                               className="rounded-full border border-[#e0e0e0] px-3 py-1.5 text-[0.78rem] text-[#555] [font-weight:700] disabled:opacity-60"
                             >
                               Rechazar
                             </button>
                           </>
-                        ) : item.status !== "closed" ? (
-                          <button
-                            type="button"
-                            disabled={actingId === item.id}
-                            onClick={() => void act(item.id, "closed")}
-                            className="rounded-full border border-[#e0e0e0] px-3 py-1.5 text-[0.78rem] text-[#555] [font-weight:700] disabled:opacity-60"
-                          >
-                            Cerrar
-                          </button>
-                        ) : null}
+                        ) : (
+                          <>
+                            {item.responseMessage ? (
+                              <p className="w-full text-[0.82rem] text-[var(--color-text-muted)]">
+                                Tu respuesta: “{item.responseMessage}”
+                              </p>
+                            ) : null}
+                            {item.status !== "closed" ? (
+                              <button
+                                type="button"
+                                disabled={actingId === item.id}
+                                onClick={() => void act(item.id, "closed")}
+                                className="rounded-full border border-[#e0e0e0] px-3 py-1.5 text-[0.78rem] text-[#555] [font-weight:700] disabled:opacity-60"
+                              >
+                                Cerrar
+                              </button>
+                            ) : null}
+                          </>
+                        )}
                       </div>
                     </li>
                   ))
@@ -445,9 +477,21 @@ export function AdoptionRequestsScreen() {
                           Tu mensaje: “{item.message}”
                         </p>
                       ) : null}
-                      <p className="mt-1 text-[0.78rem] text-[var(--color-text-muted)]">
-                        El publicador te contactará si acepta tu solicitud.
-                      </p>
+                      {item.responseMessage ? (
+                        <p className="mt-1 text-[0.82rem] text-[#2f6f8f]">
+                          Respuesta del publicador: “{item.responseMessage}”
+                        </p>
+                      ) : null}
+                      {item.status === "accepted" ? (
+                        <p className="mt-1 text-[0.78rem] text-[var(--color-text-muted)]">
+                          El publicador te contactará con el teléfono de tu
+                          perfil.
+                        </p>
+                      ) : item.status === "pending" ? (
+                        <p className="mt-1 text-[0.78rem] text-[var(--color-text-muted)]">
+                          El publicador te contactará si acepta tu solicitud.
+                        </p>
+                      ) : null}
 
                       <div className="mt-3 flex flex-wrap items-center gap-2">
                         <Link
@@ -473,6 +517,94 @@ export function AdoptionRequestsScreen() {
             </ul>
           )}
         </>
+      ) : null}
+
+      {replyModal ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center">
+          <div
+            role="dialog"
+            aria-modal
+            aria-labelledby="adoption-reply-title"
+            className="w-full max-w-md rounded-[18px] bg-white p-5 shadow-xl"
+          >
+            <h2
+              id="adoption-reply-title"
+              className="text-[1.05rem] text-[#4a4a4a] [font-weight:800]"
+            >
+              {replyModal.status === "accepted"
+                ? "¿Aceptar esta solicitud?"
+                : "¿Rechazar esta solicitud?"}
+            </h2>
+            <p className="mt-1 text-[0.85rem] text-[var(--color-text-muted)]">
+              {replyModal.status === "accepted"
+                ? `Se notificará a ${replyModal.item.requesterName ?? "el interesado"}${
+                    replyModal.item.petName
+                      ? ` sobre ${replyModal.item.petName}`
+                      : ""
+                  }. Puedes dejarle un mensaje.`
+                : `Puedes explicar el motivo del rechazo a ${
+                    replyModal.item.requesterName ?? "el interesado"
+                  } (opcional).`}
+            </p>
+            <label className="mt-4 block">
+              <span className="mb-1.5 block text-[0.8rem] text-[var(--color-text-muted)] [font-weight:600]">
+                Mensaje para el solicitante (opcional)
+              </span>
+              <textarea
+                value={replyMessage}
+                onChange={(e) => setReplyMessage(e.target.value.slice(0, 500))}
+                rows={4}
+                placeholder={
+                  replyModal.status === "accepted"
+                    ? "Ej. ¡Qué bueno! Te escribo por WhatsApp para coordinar..."
+                    : "Ej. Ya fue adoptado / Buscamos un hogar con patio..."
+                }
+                className="w-full resize-none rounded-[12px] border border-[#e8e8e8] bg-[#fafafa] px-3.5 py-3 text-[0.9rem] outline-none focus:border-[var(--color-primary)] focus:bg-white"
+              />
+            </label>
+            {replyError ? (
+              <p className="mt-2 text-[0.8rem] text-[var(--color-primary)]">
+                {replyError}
+              </p>
+            ) : null}
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                disabled={actingId === replyModal.item.id}
+                onClick={() => {
+                  setReplyModal(null);
+                  setReplyMessage("");
+                  setReplyError("");
+                }}
+                className="h-11 flex-1 rounded-full border border-[#e0e0e0] text-[0.9rem] text-[#555] [font-weight:700]"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={actingId === replyModal.item.id}
+                onClick={() =>
+                  void act(
+                    replyModal.item.id,
+                    replyModal.status,
+                    replyMessage,
+                  )
+                }
+                className={`h-11 flex-1 rounded-full text-[0.9rem] text-white [font-weight:800] disabled:opacity-60 ${
+                  replyModal.status === "accepted"
+                    ? "bg-[var(--color-primary)]"
+                    : "bg-[#c45a6c]"
+                }`}
+              >
+                {actingId === replyModal.item.id
+                  ? "Enviando..."
+                  : replyModal.status === "accepted"
+                    ? "Confirmar aceptación"
+                    : "Confirmar rechazo"}
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
     </ProfilePageShell>
   );

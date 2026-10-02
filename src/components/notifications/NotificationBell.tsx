@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { NotificationListItem } from "@/components/notifications/NotificationListItem";
 import {
   ApiError,
@@ -25,9 +26,14 @@ export function NotificationBell({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [marking, setMarking] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const panelId = useId();
-  const rootRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const load = useCallback(async () => {
     if (!getToken()) {
@@ -48,7 +54,7 @@ export function NotificationBell({
     } finally {
       setLoading(false);
     }
-  }, [onUnreadChange]);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -70,7 +76,7 @@ export function NotificationBell({
     function onPointerDown(event: MouseEvent) {
       const target = event.target as Node;
       if (
-        rootRef.current?.contains(target) ||
+        panelRef.current?.contains(target) ||
         buttonRef.current?.contains(target)
       ) {
         return;
@@ -132,8 +138,82 @@ export function NotificationBell({
 
   const unread = items.filter((item) => !item.readAt).length;
 
+  const panel =
+    open && mounted
+      ? createPortal(
+          <div
+            ref={panelRef}
+            id={panelId}
+            role="dialog"
+            aria-label="Notificaciones"
+            className="fixed top-[4.5rem] right-3 left-3 z-[60] mx-auto max-h-[min(28rem,70vh)] w-auto max-w-[22.5rem] overflow-hidden rounded-2xl border border-[#e8e8e8] bg-white shadow-[0_18px_48px_rgba(0,0,0,0.22)] sm:right-4 sm:left-auto sm:w-[22.5rem]"
+          >
+            <div className="flex items-center justify-between gap-2 border-b border-[#f0f0f0] px-3.5 py-3 sm:gap-3 sm:px-4">
+              <p className="min-w-0 truncate text-[1rem] text-[#3f3f3f] [font-weight:800]">
+                Notificaciones
+              </p>
+              {unread > 0 ? (
+                <button
+                  type="button"
+                  disabled={marking}
+                  onClick={() => void markAll()}
+                  className="shrink-0 text-[0.75rem] text-[var(--color-primary)] [font-weight:700] disabled:opacity-60"
+                >
+                  Marcar todas
+                </button>
+              ) : null}
+            </div>
+
+            <div className="max-h-[min(24rem,60vh)] overflow-y-auto">
+              {loading ? (
+                <p className="px-4 py-6 text-center text-[0.85rem] text-[var(--color-text-muted)]">
+                  Cargando...
+                </p>
+              ) : null}
+
+              {error ? (
+                <p className="px-4 py-4 text-[0.82rem] text-[var(--color-primary)]">
+                  {error}
+                </p>
+              ) : null}
+
+              {!loading && !error && items.length === 0 ? (
+                <p className="px-4 py-8 text-center text-[0.85rem] text-[var(--color-text-muted)]">
+                  No tienes notificaciones todavía.
+                </p>
+              ) : null}
+
+              {!loading && items.length > 0 ? (
+                <ul className="divide-y divide-[#f0f0f0]">
+                  {items.map((item) => (
+                    <li key={item.id}>
+                      <NotificationListItem
+                        item={item}
+                        dense
+                        onOpen={(row) => void openNotification(row)}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+
+            <div className="border-t border-[#f0f0f0] bg-[#fafafa]">
+              <Link
+                href="/perfil/notificaciones"
+                onClick={() => setOpen(false)}
+                className="block px-4 py-3 text-center text-[0.82rem] text-[var(--color-primary)] [font-weight:800] transition hover:bg-[#f3f3f3]"
+              >
+                Ver todas
+              </Link>
+            </div>
+          </div>,
+          document.body,
+        )
+      : null;
+
   return (
-    <div className="relative shrink-0" ref={rootRef}>
+    <div className="relative shrink-0">
       <button
         ref={buttonRef}
         type="button"
@@ -168,74 +248,7 @@ export function NotificationBell({
         ) : null}
       </button>
 
-      {open ? (
-        <div
-          id={panelId}
-          role="dialog"
-          aria-label="Notificaciones"
-          className="absolute top-[calc(100%+0.55rem)] right-0 z-50 w-[min(22.5rem,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border border-[#e8e8e8] bg-white shadow-[0_18px_48px_rgba(0,0,0,0.22)]"
-        >
-          <div className="flex items-center justify-between gap-3 border-b border-[#f0f0f0] px-4 py-3">
-            <p className="text-[1rem] text-[#3f3f3f] [font-weight:800]">
-              Notificaciones
-            </p>
-            {unread > 0 ? (
-              <button
-                type="button"
-                disabled={marking}
-                onClick={() => void markAll()}
-                className="text-[0.75rem] text-[var(--color-primary)] [font-weight:700] disabled:opacity-60"
-              >
-                Marcar todas
-              </button>
-            ) : null}
-          </div>
-
-          <div className="max-h-[min(28rem,70vh)] overflow-y-auto">
-            {loading ? (
-              <p className="px-4 py-6 text-center text-[0.85rem] text-[var(--color-text-muted)]">
-                Cargando...
-              </p>
-            ) : null}
-
-            {error ? (
-              <p className="px-4 py-4 text-[0.82rem] text-[var(--color-primary)]">
-                {error}
-              </p>
-            ) : null}
-
-            {!loading && !error && items.length === 0 ? (
-              <p className="px-4 py-8 text-center text-[0.85rem] text-[var(--color-text-muted)]">
-                No tienes notificaciones todavía.
-              </p>
-            ) : null}
-
-            {!loading && items.length > 0 ? (
-              <ul className="divide-y divide-[#f0f0f0]">
-                {items.map((item) => (
-                  <li key={item.id}>
-                    <NotificationListItem
-                      item={item}
-                      dense
-                      onOpen={(row) => void openNotification(row)}
-                    />
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </div>
-
-          <div className="border-t border-[#f0f0f0] bg-[#fafafa]">
-            <Link
-              href="/perfil/notificaciones"
-              onClick={() => setOpen(false)}
-              className="block px-4 py-3 text-center text-[0.82rem] text-[var(--color-primary)] [font-weight:800] transition hover:bg-[#f3f3f3]"
-            >
-              Ver todas
-            </Link>
-          </div>
-        </div>
-      ) : null}
+      {panel}
     </div>
   );
 }

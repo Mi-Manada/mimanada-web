@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { NotificationListItem } from "@/components/notifications/NotificationListItem";
 import {
@@ -13,6 +13,10 @@ import {
   type AppNotification,
 } from "@/lib/api";
 import { subscribeNotifications } from "@/lib/notifications-socket";
+
+const PANEL_WIDTH = 360;
+const PANEL_GAP = 8;
+const VIEWPORT_PAD = 12;
 
 export function NotificationBell({
   unreadCount,
@@ -27,6 +31,12 @@ export function NotificationBell({
   const [error, setError] = useState("");
   const [marking, setMarking] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [coords, setCoords] = useState<{
+    top: number;
+    left: number;
+    width: number;
+    maxHeight: number;
+  } | null>(null);
   const panelId = useId();
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -34,6 +44,50 @@ export function NotificationBell({
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  const updatePosition = useCallback(() => {
+    const button = buttonRef.current;
+    if (!button) return;
+    const rect = button.getBoundingClientRect();
+    const viewportW = window.innerWidth;
+    const viewportH = window.innerHeight;
+    const isMobile = viewportW < 640;
+
+    const width = isMobile
+      ? Math.min(viewportW - VIEWPORT_PAD * 2, PANEL_WIDTH)
+      : Math.min(PANEL_WIDTH, viewportW - VIEWPORT_PAD * 2);
+
+    let left = isMobile
+      ? (viewportW - width) / 2
+      : rect.right - width;
+    left = Math.max(
+      VIEWPORT_PAD,
+      Math.min(left, viewportW - width - VIEWPORT_PAD),
+    );
+
+    const top = rect.bottom + PANEL_GAP;
+    const bottomNavReserve = isMobile ? 72 : 16;
+    const maxHeight = Math.max(
+      180,
+      viewportH - top - VIEWPORT_PAD - bottomNavReserve,
+    );
+
+    setCoords({ top, left, width, maxHeight });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setCoords(null);
+      return;
+    }
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [open, updatePosition]);
 
   const load = useCallback(async () => {
     if (!getToken()) {
@@ -139,14 +193,20 @@ export function NotificationBell({
   const unread = items.filter((item) => !item.readAt).length;
 
   const panel =
-    open && mounted
+    open && mounted && coords
       ? createPortal(
           <div
             ref={panelRef}
             id={panelId}
             role="dialog"
             aria-label="Notificaciones"
-            className="fixed top-[4.5rem] right-3 left-3 z-[60] mx-auto max-h-[min(28rem,70vh)] w-auto max-w-[22.5rem] overflow-hidden rounded-2xl border border-[#e8e8e8] bg-white shadow-[0_18px_48px_rgba(0,0,0,0.22)] sm:right-4 sm:left-auto sm:w-[22.5rem]"
+            style={{
+              top: coords.top,
+              left: coords.left,
+              width: coords.width,
+              maxHeight: coords.maxHeight,
+            }}
+            className="fixed z-[60] overflow-hidden rounded-2xl border border-[#e8e8e8] bg-white shadow-[0_18px_48px_rgba(0,0,0,0.22)]"
           >
             <div className="flex items-center justify-between gap-2 border-b border-[#f0f0f0] px-3.5 py-3 sm:gap-3 sm:px-4">
               <p className="min-w-0 truncate text-[1rem] text-[#3f3f3f] [font-weight:800]">
@@ -164,7 +224,10 @@ export function NotificationBell({
               ) : null}
             </div>
 
-            <div className="max-h-[min(24rem,60vh)] overflow-y-auto">
+            <div
+              className="overflow-y-auto overscroll-contain"
+              style={{ maxHeight: Math.max(120, coords.maxHeight - 108) }}
+            >
               {loading ? (
                 <p className="px-4 py-6 text-center text-[0.85rem] text-[var(--color-text-muted)]">
                   Cargando...

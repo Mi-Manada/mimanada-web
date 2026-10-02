@@ -11,7 +11,7 @@ export type AdoptionFilters = {
   species: PetSpecies[];
   sexes: SexFilter[];
   ages: AgeFilter[];
-  sizes: Exclude<PetSize, "unknown">[];
+  sizes: Exclude<PetSize, "unknown" | "giant">[];
   cities: string[];
   municipalities: string[];
   vaccinated: boolean;
@@ -80,14 +80,13 @@ const AGE_OPTIONS: { value: AgeFilter; label: string; icon: ReactNode }[] = [
 ];
 
 const SIZE_OPTIONS: {
-  value: Exclude<PetSize, "unknown">;
+  value: Exclude<PetSize, "unknown" | "giant">;
   label: string;
   icon: ReactNode;
 }[] = [
   { value: "small", label: "Pequeño", icon: <SizeBarsIcon level={1} /> },
   { value: "medium", label: "Mediano", icon: <SizeBarsIcon level={2} /> },
   { value: "large", label: "Grande", icon: <SizeBarsIcon level={3} /> },
-  { value: "giant", label: "Gigante", icon: <SizeBarsIcon level={4} /> },
 ];
 
 function toggleValue<T extends string>(list: T[], value: T): T[] {

@@ -71,11 +71,8 @@ function filtersFromSearchParams(params: URLSearchParams): AdoptionFilters {
   );
 
   const sizeValues = parseListParam(params.get("tamano")).filter(
-    (value): value is Exclude<PetSize, "unknown"> =>
-      value === "small" ||
-      value === "medium" ||
-      value === "large" ||
-      value === "giant",
+    (value): value is Exclude<PetSize, "unknown" | "giant"> =>
+      value === "small" || value === "medium" || value === "large",
   );
 
   const agesFromParam = parseListParam(params.get("edad")).filter(
@@ -160,7 +157,14 @@ function matchesFilters(pet: Pet, filters: AdoptionFilters) {
   }
 
   if (filters.sizes.length) {
-    if (pet.size === "unknown" || !filters.sizes.includes(pet.size)) {
+    if (
+      pet.size !== "small" &&
+      pet.size !== "medium" &&
+      pet.size !== "large"
+    ) {
+      return false;
+    }
+    if (!filters.sizes.includes(pet.size)) {
       return false;
     }
   }

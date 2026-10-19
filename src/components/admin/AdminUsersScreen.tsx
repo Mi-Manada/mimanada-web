@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { ConfirmationModal } from "@/components/admin/ConfirmationModal";
+import { AdminActionModal } from "@/components/admin/AdminActionModal";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import {
   ACCOUNT_STATUS_LABELS,
@@ -17,9 +17,10 @@ import {
   type AdminUserRow,
 } from "@/lib/api";
 
-type PendingAction =
-  | { type: "warn" | "ban" | "reactivate"; user: AdminUserRow }
-  | { type: "suspend"; user: AdminUserRow; days: number | null };
+type PendingAction = {
+  type: "warn" | "suspend" | "ban" | "reactivate";
+  user: AdminUserRow;
+};
 
 export function AdminUsersScreen() {
   const searchParams = useSearchParams();
@@ -29,9 +30,9 @@ export function AdminUsersScreen() {
   const [rows, setRows] = useState<AdminUserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingAction | null>(null);
-  const [suspendUser, setSuspendUser] = useState<AdminUserRow | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -52,16 +53,32 @@ export function AdminUsersScreen() {
     void load();
   }, [load]);
 
-  async function runAction(action: PendingAction) {
+  useEffect(() => {
+    if (!focus || loading) return;
+    const el = document.getElementById(`user-${focus}`);
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [focus, loading, rows]);
+
+  async function runAction(
+    action: PendingAction,
+    reason: string,
+    days: number | null,
+  ) {
     setBusyId(action.user.id);
+    setError("");
     try {
-      await moderateAdminUser(
-        action.user.id,
-        action.type,
-        action.type === "suspend" ? { days: action.days } : undefined,
-      );
+      await moderateAdminUser(action.user.id, action.type, {
+        days: action.type === "suspend" ? days : undefined,
+        reason: reason || undefined,
+      });
       setPending(null);
-      setSuspendUser(null);
+      const labels = {
+        warn: `Advertencia enviada a ${action.user.fullName}.`,
+        suspend: `${action.user.fullName} fue suspendido y recibió el motivo.`,
+        ban: `${action.user.fullName} fue bloqueado y recibió el motivo.`,
+        reactivate: `${action.user.fullName} fue reactivado.`,
+      } as const;
+      setSuccess(labels[action.type]);
       await load();
     } catch (err) {
       setError(
@@ -77,7 +94,8 @@ export function AdminUsersScreen() {
       <div>
         <h1 className="text-[1.4rem] text-[#222] [font-weight:800]">Usuarios</h1>
         <p className="mt-1 text-[0.9rem] text-[#777]">
-          Consulta y modera cuentas de la plataforma.
+          Al advertir, suspender o bloquear debes escribir el motivo. El usuario
+          lo recibe en sus notificaciones.
         </p>
       </div>
 
@@ -102,6 +120,11 @@ export function AdminUsersScreen() {
         </button>
       </form>
 
+      {success ? (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-[0.88rem] text-emerald-800 [font-weight:600]">
+          {success}
+        </div>
+      ) : null}
       {error ? (
         <p className="text-[0.9rem] text-[var(--color-primary)]">{error}</p>
       ) : null}
@@ -177,10 +200,10 @@ export function AdminUsersScreen() {
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1.5">
                         <Link
-                          href={`/usuarios/${u.id}`}
+                          href={`/admin/usuarios/${u.id}`}
                           className="rounded-full border border-[#e4e4e4] px-2.5 py-1 text-[0.72rem] [font-weight:700]"
                         >
-                          Perfil
+                          Detalle
                         </Link>
                         {u.role !== "admin" ? (
                           <>
@@ -197,7 +220,9 @@ export function AdminUsersScreen() {
                             <button
                               type="button"
                               disabled={busyId === u.id}
-                              onClick={() => setSuspendUser(u)}
+                              onClick={() =>
+                                setPending({ type: "suspend", user: u })
+                              }
                               className="rounded-full border border-orange-200 px-2.5 py-1 text-[0.72rem] text-orange-800 [font-weight:700]"
                             >
                               Suspender
@@ -238,71 +263,42 @@ export function AdminUsersScreen() {
         </div>
       )}
 
-      {suspendUser ? (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl">
-            <h2 className="text-[1.05rem] [font-weight:800]">
-              Suspender a {suspendUser.fullName}
-            </h2>
-            <p className="mt-2 text-[0.9rem] text-[#666]">
-              Elige la duración de la suspensión.
-            </p>
-            <div className="mt-4 grid gap-2">
-              {[
-                { days: 1, label: "24 horas" },
-                { days: 7, label: "7 días" },
-                { days: 30, label: "30 días" },
-                { days: null, label: "Indefinidamente" },
-              ].map((opt) => (
-                <button
-                  key={String(opt.days)}
-                  type="button"
-                  disabled={busyId === suspendUser.id}
-                  onClick={() =>
-                    setPending({
-                      type: "suspend",
-                      user: suspendUser,
-                      days: opt.days,
-                    })
-                  }
-                  className="rounded-xl border border-[#e8e8e8] px-4 py-3 text-left text-[0.9rem] [font-weight:700] hover:border-[var(--color-primary)]"
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              className="mt-4 w-full rounded-full border border-[#e0e0e0] py-2.5 text-[0.9rem] [font-weight:700]"
-              onClick={() => setSuspendUser(null)}
-            >
-              Cancelar
-            </button>
-          </div>
-        </div>
-      ) : null}
-
-      <ConfirmationModal
+      <AdminActionModal
         open={Boolean(pending)}
         title={
           pending?.type === "warn"
-            ? "Advertir usuario"
+            ? `Advertir a ${pending.user.fullName}`
             : pending?.type === "ban"
-              ? "Bloquear usuario"
+              ? `Bloquear a ${pending.user.fullName}`
               : pending?.type === "reactivate"
-                ? "Reactivar usuario"
-                : "Confirmar suspensión"
+                ? `Reactivar a ${pending.user.fullName}`
+                : pending
+                  ? `Suspender a ${pending.user.fullName}`
+                  : ""
         }
-        message={
-          pending
-            ? `¿Confirmas la acción sobre ${pending.user.fullName}?`
-            : ""
+        description={
+          pending?.type === "reactivate"
+            ? "La cuenta volverá a estar activa. Puedes dejar una nota opcional."
+            : "Escribe el motivo. El usuario lo verá en sus notificaciones."
+        }
+        confirmLabel={
+          pending?.type === "warn"
+            ? "Enviar advertencia"
+            : pending?.type === "ban"
+              ? "Bloquear"
+              : pending?.type === "reactivate"
+                ? "Reactivar"
+                : "Suspender"
         }
         danger={pending?.type === "ban" || pending?.type === "suspend"}
+        reasonRequired={pending?.type !== "reactivate"}
+        reasonLabel="Mensaje para el usuario"
+        reasonPlaceholder="Ej: Publicaste contenido que incumple las normas de la comunidad…"
+        showDuration={pending?.type === "suspend"}
         busy={Boolean(pending && busyId === pending.user.id)}
         onCancel={() => setPending(null)}
-        onConfirm={() => {
-          if (pending) void runAction(pending);
+        onConfirm={({ reason, days }) => {
+          if (pending) void runAction(pending, reason, days);
         }}
       />
     </div>

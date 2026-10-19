@@ -112,6 +112,52 @@ export const PROFILE_MENU_SECTIONS: ProfileMenuSection[] = [
           </ProfileMenuIcon>
         ),
       },
+      {
+        title: "Advertencias",
+        description: "Avisos y sanciones de moderación",
+        href: "/perfil/advertencias",
+        icon: (
+          <ProfileMenuIcon>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <path
+                d="M12 3.8 2.8 19.2h18.4L12 3.8Z"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M12 9.5v4.2M12 16.6h.01"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+              />
+            </svg>
+          </ProfileMenuIcon>
+        ),
+      },
+      {
+        title: "Apelaciones",
+        description: "Impugna decisiones sobre tus publicaciones",
+        href: "/perfil/apelaciones",
+        icon: (
+          <ProfileMenuIcon>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <path
+                d="M7 4.5h10a1.5 1.5 0 0 1 1.5 1.5v14L12 17.2 5.5 20V6A1.5 1.5 0 0 1 7 4.5Z"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M9 9.2h6M9 12.2h4"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+              />
+            </svg>
+          </ProfileMenuIcon>
+        ),
+      },
     ],
   },
   {

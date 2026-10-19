@@ -20,6 +20,8 @@ const ACCOUNT_TONE: Record<string, keyof typeof TONES> = {
   warned: "yellow",
   suspended: "red",
   banned: "darkRed",
+  published: "green",
+  closed: "gray",
 };
 
 const REPORT_TONE: Record<string, keyof typeof TONES> = {
@@ -27,6 +29,12 @@ const REPORT_TONE: Record<string, keyof typeof TONES> = {
   reviewed: "blue",
   dismissed: "gray",
   action_taken: "green",
+  incomplete: "gray",
+  submitted: "yellow",
+  verified: "green",
+  rejected: "red",
+  accepted: "green",
+  closed: "gray",
 };
 
 export function StatusBadge({

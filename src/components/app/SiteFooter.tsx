@@ -112,6 +112,7 @@ const FOOTER_COLUMNS = [
     { href: "/home", label: "Inicio" },
     { href: "/perfil/verificacion", label: "Verificación", badge: "IMPORTANTE" },
     { href: "/perfil/notificaciones", label: "Notificaciones" },
+    { href: "/perfil/advertencias", label: "Advertencias" },
     { href: "mailto:hola@mimanada.app", label: "Ayuda", external: true },
   ],
 ] as const;

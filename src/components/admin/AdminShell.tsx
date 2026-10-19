@@ -8,10 +8,11 @@ import { ApiError, clearSession, getMe, getToken, type AuthUser } from "@/lib/ap
 const NAV = [
   { href: "/admin", label: "Dashboard", exact: true },
   { href: "/admin/moderacion", label: "Moderación" },
-  { href: "/admin/reportes", label: "Reportes" },
+  { href: "/admin/apelaciones", label: "Apelaciones" },
+  { href: "/admin/publicaciones", label: "Publicaciones" },
   { href: "/admin/usuarios", label: "Usuarios" },
-  { href: "/admin/adopciones", label: "Adopciones" },
-  { href: "/admin/servicios", label: "Servicios" },
+  { href: "/admin/solicitudes", label: "Solicitudes" },
+  { href: "/admin/reportes", label: "Reportes" },
   { href: "/admin/historial", label: "Historial" },
 ];
 

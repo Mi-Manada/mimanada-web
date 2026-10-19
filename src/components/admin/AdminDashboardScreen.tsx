@@ -87,7 +87,11 @@ export function AdminDashboardScreen() {
       </div>
 
       <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Publicaciones totales" value={t.totalPets} />
+        <MetricCard
+          label="Publicaciones totales"
+          value={t.totalPets}
+          href="/admin/publicaciones"
+        />
         <MetricCard
           label="Pendientes de revisión"
           value={t.needsReview}

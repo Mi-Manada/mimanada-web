@@ -628,37 +628,16 @@ export function PetDetailScreen({
                           Adóptame
                         </button>
                       )}
-                      <p className="mt-3 text-center text-[0.78rem] text-[var(--color-text-muted)]">
+                      <p className="mt-3 text-left text-[0.78rem] text-[var(--color-text-muted)]">
                         {hasRequested
                           ? "El publicador recibió tu solicitud y te contactará si avanza el proceso."
                           : "Al confirmar, se notifica al publicador. Él te contactará con el teléfono de tu perfil."}
                       </p>
                       {requestError && !requestModalOpen ? (
-                        <p className="mt-3 text-center text-[0.8rem] text-[var(--color-primary)]">
+                        <p className="mt-3 text-left text-[0.8rem] text-[var(--color-primary)]">
                           {requestError}
                         </p>
                       ) : null}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!getToken()) {
-                            router.push(
-                              `/login?next=${encodeURIComponent(
-                                typeof window !== "undefined"
-                                  ? window.location.pathname
-                                  : "/adopta",
-                              )}`,
-                            );
-                            return;
-                          }
-                          setReportError("");
-                          setReportDone(false);
-                          setReportOpen(true);
-                        }}
-                        className="mt-4 w-full text-center text-[0.82rem] text-[#888] underline-offset-2 hover:text-[var(--color-primary)] hover:underline [font-weight:600]"
-                      >
-                        Reportar publicación
-                      </button>
                     </div>
                   ) : (
                     <div className="mt-7">
@@ -758,8 +737,32 @@ export function PetDetailScreen({
                     </div>
                   </div>
 
+                  {!isOwner ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!getToken()) {
+                          router.push(
+                            `/login?next=${encodeURIComponent(
+                              typeof window !== "undefined"
+                                ? window.location.pathname
+                                : "/adopta",
+                            )}`,
+                          );
+                          return;
+                        }
+                        setReportError("");
+                        setReportDone(false);
+                        setReportOpen(true);
+                      }}
+                      className="mt-4 text-left text-[0.82rem] text-[var(--color-primary)] underline-offset-2 hover:underline [font-weight:600]"
+                    >
+                      Reportar publicación
+                    </button>
+                  ) : null}
+
                   {deleteError ? (
-                    <p className="mt-2 text-center text-[0.8rem] text-[var(--color-primary)] sm:text-left">
+                    <p className="mt-2 text-left text-[0.8rem] text-[var(--color-primary)]">
                       {deleteError}
                     </p>
                   ) : null}

@@ -36,12 +36,44 @@ export const ACTION_LABELS: Record<string, string> = {
   POST_DELETED: "Publicación eliminada",
   POST_RESTORED: "Publicación restaurada",
   POST_BLOCKED: "Publicación bloqueada",
+  POST_FLAGGED_REVIEW: "Marcada para revisión",
   USER_WARNED: "Usuario advertido",
   USER_SUSPENDED: "Usuario suspendido",
   USER_BANNED: "Usuario bloqueado",
   USER_REACTIVATED: "Usuario reactivado",
+  USER_IDENTITY_VERIFIED: "Identidad verificada",
+  USER_IDENTITY_REJECTED: "Identidad rechazada",
   REPORT_DISMISSED: "Reporte descartado",
   REPORT_ACTION_TAKEN: "Acción sobre reporte",
+  ADOPTION_CLOSED: "Solicitud de adopción cerrada",
+  APPEAL_SUBMITTED: "Apelación enviada",
+  APPEAL_ACCEPTED: "Apelación aceptada",
+  APPEAL_REJECTED: "Apelación rechazada",
+};
+
+export const APPEAL_STATUS_LABELS: Record<string, string> = {
+  pending: "Pendiente",
+  accepted: "Aceptada",
+  rejected: "Rechazada",
+};
+
+export const IDENTITY_STATUS_LABELS: Record<string, string> = {
+  incomplete: "Incompleta",
+  submitted: "Enviada",
+  verified: "Verificada",
+  rejected: "Rechazada",
+};
+
+export const ADOPTION_STATUS_LABELS: Record<string, string> = {
+  pending: "Pendiente",
+  accepted: "Aceptada",
+  rejected: "Rechazada",
+  closed: "Cerrada",
+};
+
+export const PET_STATUS_LABELS: Record<string, string> = {
+  published: "Publicada",
+  closed: "Cerrada",
 };
 
 export function formatAdminDate(value: string | null | undefined) {

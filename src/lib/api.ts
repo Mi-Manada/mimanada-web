@@ -19,6 +19,7 @@ export type AuthUser = {
   userType: "persona" | "fundacion" | "proveedor";
   role?: "user" | "admin";
   accountStatus?: "active" | "warned" | "suspended" | "banned";
+  warnCount?: number;
   suspendedUntil?: string | null;
   emailConfirmed: boolean;
   state: string | null;
@@ -520,7 +521,11 @@ export async function updateAdoptionRequestStatus(
 
 export type AppNotification = {
   id: string;
-  type: "adoption_request" | "adoption_accepted" | "adoption_rejected";
+  type:
+    | "adoption_request"
+    | "adoption_accepted"
+    | "adoption_rejected"
+    | "moderation";
   title: string;
   body: string;
   linkHref: string | null;
@@ -530,6 +535,11 @@ export type AppNotification = {
   readAt: string | null;
   createdAt: string;
 };
+
+/** Sanciones de cuenta (advertencias, suspensiones, etc.), no pubs. */
+export function isAccountWarningNotification(item: AppNotification) {
+  return item.type === "moderation" && !item.petId;
+}
 
 export async function getNotifications(limit = 40): Promise<AppNotification[]> {
   return apiFetch<AppNotification[]>(`/notifications?limit=${limit}`);
@@ -550,6 +560,51 @@ export async function markNotificationRead(
 export async function markAllNotificationsRead(): Promise<{ ok: boolean }> {
   return apiFetch<{ ok: boolean }>("/notifications/read-all", {
     method: "POST",
+  });
+}
+
+export type ModerationAppealStatus = "pending" | "accepted" | "rejected";
+
+export type ModerationAppeal = {
+  id: string;
+  status: ModerationAppealStatus;
+  message: string;
+  adminResponse: string | null;
+  createdAt: string;
+  resolvedAt: string | null;
+  petId: string;
+  petName: string | null;
+  petPhotoUrl: string | null;
+  petModerationStatus: string | null;
+  userId: string;
+  userName: string | null;
+  resolvedByAdminName: string | null;
+};
+
+export async function createPetAppeal(petId: string, message: string) {
+  return apiFetch<ModerationAppeal>(`/pets/${petId}/appeals`, {
+    method: "POST",
+    body: JSON.stringify({ message }),
+  });
+}
+
+export async function getMyAppeals() {
+  return apiFetch<ModerationAppeal[]>("/appeals/mine");
+}
+
+export async function getAdminAppeals(status?: ModerationAppealStatus) {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : "";
+  return apiFetch<ModerationAppeal[]>(`/admin/appeals${qs}`);
+}
+
+export async function resolveAdminAppeal(
+  id: string,
+  action: "accept" | "reject",
+  response?: string,
+) {
+  return apiFetch<ModerationAppeal>(`/admin/appeals/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ action, response }),
   });
 }
 
@@ -622,12 +677,19 @@ export type ModerationActionType =
   | "POST_DELETED"
   | "POST_RESTORED"
   | "POST_BLOCKED"
+  | "POST_FLAGGED_REVIEW"
   | "USER_WARNED"
   | "USER_SUSPENDED"
   | "USER_BANNED"
   | "USER_REACTIVATED"
+  | "USER_IDENTITY_VERIFIED"
+  | "USER_IDENTITY_REJECTED"
   | "REPORT_DISMISSED"
-  | "REPORT_ACTION_TAKEN";
+  | "REPORT_ACTION_TAKEN"
+  | "ADOPTION_CLOSED"
+  | "APPEAL_SUBMITTED"
+  | "APPEAL_ACCEPTED"
+  | "APPEAL_REJECTED";
 
 export type AdminPet = {
   id: string;
@@ -642,6 +704,7 @@ export type AdminPet = {
   moderationScanStatus: string;
   moderationData: Record<string, number> | null;
   reportCount: number;
+  queueReason?: string | null;
   ownerId: string;
   ownerName: string | null;
   ownerEmail: string | null;
@@ -777,11 +840,120 @@ export async function setAdminPetStatus(
   id: string,
   status: PetModerationStatus,
   reason?: string,
+  policyCode?: string | null,
 ) {
   return apiFetch<AdminPetDetail>(`/admin/moderation/pets/${id}`, {
     method: "PATCH",
+    body: JSON.stringify({ status, reason, policyCode }),
+  });
+}
+
+export async function getAdminPets(q?: string) {
+  const qs = q ? `?q=${encodeURIComponent(q)}` : "";
+  return apiFetch<AdminPet[]>(`/admin/pets${qs}`);
+}
+
+export async function flagAdminPet(id: string, reason?: string) {
+  return apiFetch<AdminPetDetail>(`/admin/moderation/pets/${id}/flag`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  });
+}
+
+export async function setAdminPetPublicationStatus(
+  id: string,
+  status: PetStatus,
+  reason?: string,
+) {
+  return apiFetch<AdminPet>(`/admin/pets/${id}/status`, {
+    method: "PATCH",
     body: JSON.stringify({ status, reason }),
   });
+}
+
+export type AdminUserDetail = {
+  user: {
+    id: string;
+    fullName: string;
+    email: string;
+    phone: string | null;
+    role: "user" | "admin";
+    accountStatus: "active" | "warned" | "suspended" | "banned";
+    suspendedUntil: string | null;
+    warnCount: number;
+    identityStatus: IdentityStatus;
+    profilePhotoUrl: string | null;
+    idCardPhotoUrl: string | null;
+    selfiePhotoUrl: string | null;
+    state: string | null;
+    municipality: string | null;
+    createdAt: string;
+  };
+  stats: {
+    publications: number;
+    reportsReceived: number;
+    notPetFlags: number;
+    deletedContent: number;
+  };
+  pets: AdminPet[];
+  history: Array<{
+    id: string;
+    action: ModerationActionType;
+    reason: string | null;
+    meta: Record<string, unknown> | null;
+    createdAt: string;
+    adminName: string | null;
+    petName: string | null;
+    petId: string | null;
+  }>;
+};
+
+export async function getAdminUserDetail(id: string) {
+  return apiFetch<AdminUserDetail>(`/admin/users/${id}`);
+}
+
+export async function setAdminUserIdentity(
+  id: string,
+  identityStatus: "verified" | "rejected",
+  reason?: string,
+) {
+  return apiFetch<AdminUserDetail>(`/admin/users/${id}/identity`, {
+    method: "PATCH",
+    body: JSON.stringify({ identityStatus, reason }),
+  });
+}
+
+export type AdminAdoptionRequest = {
+  id: string;
+  status: "pending" | "accepted" | "rejected" | "closed";
+  message: string | null;
+  responseMessage: string | null;
+  createdAt: string;
+  updatedAt: string;
+  petId: string;
+  petName: string | null;
+  petPhotoUrl: string | null;
+  requesterId: string;
+  requesterName: string | null;
+  ownerId: string;
+  ownerName: string | null;
+};
+
+export async function getAdminAdoptionRequests(
+  status?: "pending" | "accepted" | "rejected" | "closed",
+) {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : "";
+  return apiFetch<AdminAdoptionRequest[]>(`/admin/adoption-requests${qs}`);
+}
+
+export async function closeAdminAdoptionRequest(id: string, reason?: string) {
+  return apiFetch<{ id: string; status: string }>(
+    `/admin/adoption-requests/${id}/close`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ reason }),
+    },
+  );
 }
 
 export async function getAdminReports(status?: ReportStatus) {

@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { ConfirmationModal } from "@/components/admin/ConfirmationModal";
+import { AdminActionModal } from "@/components/admin/AdminActionModal";
+import { CONTENT_POLICY_PRESETS } from "@/components/admin/policy-presets";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import {
   ACTION_LABELS,
@@ -20,16 +21,23 @@ import {
   type PetModerationStatus,
 } from "@/lib/api";
 
+type PendingAction = {
+  status: PetModerationStatus;
+  title: string;
+  description: string;
+  confirmLabel: string;
+  danger?: boolean;
+  reasonRequired: boolean;
+  usePresets?: boolean;
+};
+
 export function AdminPetModerationDetail({ petId }: { petId: string }) {
   const [data, setData] = useState<AdminPetDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [busy, setBusy] = useState(false);
-  const [confirm, setConfirm] = useState<{
-    status: PetModerationStatus;
-    title: string;
-    message: string;
-  } | null>(null);
+  const [pending, setPending] = useState<PendingAction | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -50,12 +58,29 @@ export function AdminPetModerationDetail({ petId }: { petId: string }) {
     void load();
   }, [load]);
 
-  async function apply(status: PetModerationStatus) {
+  async function apply(
+    status: PetModerationStatus,
+    reason: string,
+    policyCode: string | null,
+  ) {
     setBusy(true);
+    setError("");
     try {
-      const res = await setAdminPetStatus(petId, status);
+      const res = await setAdminPetStatus(
+        petId,
+        status,
+        reason || undefined,
+        policyCode,
+      );
       setData(res);
-      setConfirm(null);
+      setPending(null);
+      const labels: Partial<Record<PetModerationStatus, string>> = {
+        active: "Publicación aprobada/restaurada. El dueño fue notificado.",
+        hidden: "Publicación ocultada. El dueño recibió tu mensaje.",
+        deleted: "Publicación eliminada. El dueño recibió tu mensaje.",
+        blocked: "Publicación bloqueada. El dueño recibió tu mensaje.",
+      };
+      setSuccess(labels[status] ?? "Acción aplicada.");
     } catch (err) {
       setError(
         err instanceof ApiError ? err.message : "No se pudo actualizar.",
@@ -96,6 +121,11 @@ export function AdminPetModerationDetail({ petId }: { petId: string }) {
         />
       </div>
 
+      {success ? (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-[0.88rem] text-emerald-800 [font-weight:600]">
+          {success}
+        </div>
+      ) : null}
       {error ? (
         <p className="text-[0.9rem] text-[var(--color-primary)]">{error}</p>
       ) : null}
@@ -112,22 +142,6 @@ export function AdminPetModerationDetail({ petId }: { petId: string }) {
               />
             ) : null}
           </div>
-          {pet.photoUrls.length > 1 ? (
-            <div className="flex gap-2 overflow-x-auto p-3">
-              {pet.photoUrls.map((url) => {
-                const src = mediaUrl(url);
-                return src ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    key={url}
-                    src={src}
-                    alt=""
-                    className="h-16 w-16 rounded-lg object-cover"
-                  />
-                ) : null;
-              })}
-            </div>
-          ) : null}
         </div>
 
         <div className="space-y-4">
@@ -147,21 +161,10 @@ export function AdminPetModerationDetail({ petId }: { petId: string }) {
                 <dd className="[font-weight:700]">{petFull.breed || "—"}</dd>
               </div>
               <div>
-                <dt className="text-[#999]">Sexo</dt>
-                <dd className="[font-weight:700]">{petFull.sex}</dd>
-              </div>
-              <div>
-                <dt className="text-[#999]">Tamaño</dt>
-                <dd className="[font-weight:700]">{petFull.size}</dd>
-              </div>
-              <div>
                 <dt className="text-[#999]">Reportes</dt>
                 <dd className="[font-weight:700]">{pet.reportCount}</dd>
               </div>
             </dl>
-            <p className="mt-3 text-[0.8rem] text-[#888]">
-              Moderación automática: {pet.moderationScanStatus}
-            </p>
           </div>
 
           <div className="rounded-2xl border border-[#ececec] bg-white p-5 shadow-sm">
@@ -170,27 +173,55 @@ export function AdminPetModerationDetail({ petId }: { petId: string }) {
               {pet.ownerName}
             </p>
             <p className="text-[0.8rem] text-[#777]">{pet.ownerEmail}</p>
-            <Link
-              href={`/usuarios/${pet.ownerId}`}
-              className="mt-3 inline-block text-[0.85rem] text-[var(--color-primary)] [font-weight:700]"
-            >
-              Ir al perfil
-            </Link>
+            <div className="mt-3 flex flex-wrap gap-3">
+              <Link
+                href={`/usuarios/${pet.ownerId}`}
+                className="text-[0.85rem] text-[var(--color-primary)] [font-weight:700]"
+              >
+                Ir al perfil
+              </Link>
+              <Link
+                href={`/admin/usuarios/${pet.ownerId}`}
+                className="text-[0.85rem] text-red-700 [font-weight:700]"
+              >
+                Moderar usuario
+              </Link>
+            </div>
           </div>
 
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
               disabled={busy}
-              onClick={() => void apply("active")}
+              onClick={() =>
+                setPending({
+                  status: "active",
+                  title: canRestore ? "Restaurar publicación" : "Aprobar publicación",
+                  description: canRestore
+                    ? "Volverá a ser visible. Puedes dejar una nota opcional."
+                    : "Quedará visible en Adopta. Nota opcional para el dueño.",
+                  confirmLabel: canRestore ? "Restaurar" : "Aprobar",
+                  reasonRequired: false,
+                })
+              }
               className="rounded-full bg-emerald-600 px-4 py-2 text-[0.85rem] text-white [font-weight:700] disabled:opacity-60"
             >
-              Aprobar
+              {canRestore ? "Restaurar" : "Aprobar"}
             </button>
             <button
               type="button"
               disabled={busy}
-              onClick={() => void apply("hidden")}
+              onClick={() =>
+                setPending({
+                  status: "hidden",
+                  title: "Ocultar publicación",
+                  description:
+                    "Usa un atajo (p. ej. No es una mascota). El dueño recibe el mensaje.",
+                  confirmLabel: "Ocultar",
+                  reasonRequired: true,
+                  usePresets: true,
+                })
+              }
               className="rounded-full bg-slate-600 px-4 py-2 text-[0.85rem] text-white [font-weight:700] disabled:opacity-60"
             >
               Ocultar
@@ -199,26 +230,21 @@ export function AdminPetModerationDetail({ petId }: { petId: string }) {
               type="button"
               disabled={busy}
               onClick={() =>
-                setConfirm({
+                setPending({
                   status: "deleted",
                   title: "Eliminar publicación",
-                  message: "La publicación se marcará como eliminada (soft delete).",
+                  description:
+                    "Soft delete. Elige política o escribe el motivo; el dueño lo recibe.",
+                  confirmLabel: "Eliminar",
+                  danger: true,
+                  reasonRequired: true,
+                  usePresets: true,
                 })
               }
               className="rounded-full bg-red-600 px-4 py-2 text-[0.85rem] text-white [font-weight:700] disabled:opacity-60"
             >
               Eliminar
             </button>
-            {canRestore ? (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void apply("active")}
-                className="rounded-full border border-emerald-600 px-4 py-2 text-[0.85rem] text-emerald-700 [font-weight:700] disabled:opacity-60"
-              >
-                Restaurar
-              </button>
-            ) : null}
           </div>
         </div>
       </div>
@@ -281,16 +307,23 @@ export function AdminPetModerationDetail({ petId }: { petId: string }) {
         )}
       </section>
 
-      <ConfirmationModal
-        open={Boolean(confirm)}
-        title={confirm?.title ?? ""}
-        message={confirm?.message ?? ""}
-        confirmLabel="Eliminar"
-        danger
+      <AdminActionModal
+        open={Boolean(pending)}
+        title={pending?.title ?? ""}
+        description={pending?.description ?? ""}
+        confirmLabel={pending?.confirmLabel}
+        danger={pending?.danger}
+        reasonRequired={pending?.reasonRequired}
+        reasonLabel="Mensaje para el publicador"
+        presets={
+          pending?.usePresets
+            ? CONTENT_POLICY_PRESETS.map((p) => ({ ...p }))
+            : undefined
+        }
         busy={busy}
-        onCancel={() => setConfirm(null)}
-        onConfirm={() => {
-          if (confirm) void apply(confirm.status);
+        onCancel={() => setPending(null)}
+        onConfirm={({ reason, policyCode }) => {
+          if (pending) void apply(pending.status, reason, policyCode);
         }}
       />
     </div>

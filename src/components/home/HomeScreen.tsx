@@ -6,9 +6,15 @@ import {
   useMemo,
   useRef,
   useState,
+  type ReactNode,
   type RefObject,
 } from "react";
-import { CatIcon } from "@/components/pets/PetIcons";
+import {
+  CamadaIcon,
+  CatIcon,
+  DogIcon,
+  MascotaIcon,
+} from "@/components/pets/PetIcons";
 import { PetCard } from "@/components/pets/PetCard";
 import { ProfileActivationBanner } from "@/components/profile/ProfileActivationBanner";
 import {
@@ -20,6 +26,69 @@ import {
   type AuthUser,
   type Pet,
 } from "@/lib/api";
+
+function NearMeIcon({ size = 22 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden
+      className="shrink-0"
+    >
+      <path
+        d="M12 21s6-5.2 6-10a6 6 0 1 0-12 0c0 4.8 6 10 6 10Z"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinejoin="round"
+      />
+      <circle cx="12" cy="11" r="2.2" fill="currentColor" />
+    </svg>
+  );
+}
+
+function RecentIcon({ size = 22 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden
+      className="shrink-0"
+    >
+      <circle cx="12" cy="12" r="8.2" stroke="currentColor" strokeWidth="1.9" />
+      <path
+        d="M12 7.8v4.6l3.2 1.8"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function WaitingHomeIcon({ size = 22 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden
+      className="shrink-0"
+    >
+      <path
+        d="M4 11.2 12 4.5l8 6.7V20a1 1 0 0 1-1 1h-5.2v-5.4H10.2V21H5a1 1 0 0 1-1-1v-8.8Z"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 const RECENT_DAYS = 14;
 
@@ -154,6 +223,7 @@ function PetCarousel({
   emptyLabel,
   showLitterLink = false,
   accent,
+  icon,
 }: {
   id?: string;
   title: string;
@@ -162,11 +232,25 @@ function PetCarousel({
   emptyLabel?: string;
   showLitterLink?: boolean;
   accent?: boolean;
+  icon?: ReactNode;
 }) {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const { canScrollLeft, canScrollRight } = useHorizontalScrollState(
     scrollerRef,
     pets.length,
+  );
+
+  const titleBlock = (
+    <div className="flex min-w-0 items-center gap-2.5">
+      {icon ? (
+        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary)]/10 text-[var(--color-primary)]">
+          {icon}
+        </span>
+      ) : null}
+      <h3 className="min-w-0 text-[1.05rem] text-[#4a4a4a] [font-weight:800] sm:text-[1.15rem]">
+        {title}
+      </h3>
+    </div>
   );
 
   if (pets.length === 0) {
@@ -181,12 +265,10 @@ function PetCarousel({
         }`}
       >
         <div className="flex items-center justify-between gap-3">
-          <h3 className="text-[1.05rem] text-[#4a4a4a] [font-weight:800]">
-            {title}
-          </h3>
+          {titleBlock}
           <Link
             href={href}
-            className="text-[0.8rem] text-[var(--color-primary)] [font-weight:700]"
+            className="shrink-0 text-[0.8rem] text-[var(--color-primary)] [font-weight:700]"
           >
             Ver más
           </Link>
@@ -217,9 +299,7 @@ function PetCarousel({
       }`}
     >
       <div className="flex items-center justify-between gap-3">
-        <h3 className="min-w-0 text-[1.05rem] text-[#4a4a4a] [font-weight:800] sm:text-[1.15rem]">
-          {title}
-        </h3>
+        {titleBlock}
         <Link
           href={href}
           className="inline-flex shrink-0 items-center gap-1.5 text-[0.8rem] text-[var(--color-primary)] [font-weight:700]"
@@ -443,6 +523,7 @@ export function HomeScreen() {
               title="Gatitos buscando hogar"
               href="/adopta?especie=cat"
               pets={cats}
+              icon={<CatIcon size={20} />}
               emptyLabel="Aún no hay gatitos publicados."
             />
 
@@ -450,6 +531,7 @@ export function HomeScreen() {
               title="Perritos buscando hogar"
               href="/adopta?especie=dog"
               pets={dogs}
+              icon={<DogIcon size={20} />}
               emptyLabel="Aún no hay perritos publicados."
             />
 
@@ -458,6 +540,7 @@ export function HomeScreen() {
               href="/adopta"
               pets={waitingLongest}
               accent
+              icon={<WaitingHomeIcon size={20} />}
               emptyLabel="Cuando haya publicaciones antiguas las verás aquí."
             />
 
@@ -465,6 +548,7 @@ export function HomeScreen() {
               title="Cerca de ti"
               href="/adopta"
               pets={nearby}
+              icon={<NearMeIcon size={20} />}
               emptyLabel={
                 hasLocation
                   ? "Aún no hay publicaciones cerca de tu zona."
@@ -476,6 +560,7 @@ export function HomeScreen() {
               title="Recién publicados"
               href="/adopta"
               pets={recent}
+              icon={<RecentIcon size={20} />}
               emptyLabel="No hay publicaciones recientes."
             />
 
@@ -485,6 +570,7 @@ export function HomeScreen() {
               href="/adopta"
               pets={litters}
               showLitterLink
+              icon={<CamadaIcon size={22} />}
               emptyLabel="Cuando haya camadas publicadas las verás aquí."
             />
 
@@ -493,6 +579,7 @@ export function HomeScreen() {
               href="/adopta?grupo=cachorros"
               pets={youngOnes}
               accent
+              icon={<MascotaIcon size={22} />}
               emptyLabel="No hay mascotas menores de 1 año por ahora."
             />
           </>

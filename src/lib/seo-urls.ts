@@ -48,3 +48,12 @@ export function userPath(
   if (!opts?.from) return path;
   return `${path}?from=${encodeURIComponent(opts.from)}`;
 }
+
+export function foundationPath(
+  foundation: { slug: string },
+  opts?: { from?: string },
+) {
+  const path = `/fundaciones/${encodeURIComponent(foundation.slug)}`;
+  if (!opts?.from) return path;
+  return `${path}?from=${encodeURIComponent(opts.from)}`;
+}

@@ -62,6 +62,11 @@ export const PROFILE_MENU_SECTIONS: ProfileMenuSection[] = [
           </ProfileMenuIcon>
         ),
       },
+    ],
+  },
+  {
+    title: "Acceso y privacidad",
+    items: [
       {
         title: "Seguridad",
         description: "Contraseña y correo de acceso",
@@ -112,6 +117,39 @@ export const PROFILE_MENU_SECTIONS: ProfileMenuSection[] = [
           </ProfileMenuIcon>
         ),
       },
+    ],
+  },
+  {
+    title: "Fundaciones",
+    items: [
+      {
+        title: "Mis fundaciones",
+        description: "Crea o administra refugios y publica en equipo",
+        href: "/perfil/fundaciones",
+        icon: (
+          <ProfileMenuIcon>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <path
+                d="M4 20V9.5L12 4l8 5.5V20"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M9 20v-6h6v6"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </ProfileMenuIcon>
+        ),
+      },
+    ],
+  },
+  {
+    title: "Moderación",
+    items: [
       {
         title: "Advertencias",
         description: "Avisos y sanciones de moderación",

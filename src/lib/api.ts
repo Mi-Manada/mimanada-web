@@ -38,6 +38,8 @@ export type AuthUser = {
 export type AuthResponse = {
   accessToken: string;
   user: AuthUser;
+  /** true si eligió fundación en el registro (crear Foundation con bootstrap). */
+  createFoundation?: boolean;
 };
 
 export class ApiError extends Error {
@@ -232,9 +234,17 @@ export type PetSize = "small" | "medium" | "large" | "giant" | "unknown";
 export type PetStatus = "published" | "closed";
 export type PetCaseKind = "isolated" | "litter";
 
+export type PetFoundationSummary = {
+  id: string;
+  name: string;
+  slug: string;
+  logoUrl: string | null;
+};
+
 export type Pet = {
   id: string;
   ownerId: string;
+  foundationId: string | null;
   name: string;
   ageYears: number | null;
   ageMonths: number | null;
@@ -259,6 +269,7 @@ export type Pet = {
   status: PetStatus;
   createdAt: string;
   updatedAt: string;
+  foundation?: PetFoundationSummary | null;
   owner?: PublicUserProfile | null;
 };
 
@@ -294,6 +305,7 @@ export type CreatePetInput = {
   diseases?: string;
   litterGroupId?: string;
   caseKind?: PetCaseKind;
+  foundationId?: string;
   photos: File[];
   medicalExams?: File[];
   existingPhotoUrls?: string[];
@@ -328,6 +340,7 @@ function appendPetFormData(input: CreatePetInput): FormData {
   if (input.diseases) body.append("diseases", input.diseases);
   if (input.litterGroupId) body.append("litterGroupId", input.litterGroupId);
   if (input.caseKind) body.append("caseKind", input.caseKind);
+  if (input.foundationId) body.append("foundationId", input.foundationId);
   if (input.existingPhotoUrls) {
     body.append("existingPhotoUrls", JSON.stringify(input.existingPhotoUrls));
   }
@@ -560,6 +573,224 @@ export async function markNotificationRead(
 export async function markAllNotificationsRead(): Promise<{ ok: boolean }> {
   return apiFetch<{ ok: boolean }>("/notifications/read-all", {
     method: "POST",
+  });
+}
+
+export type FoundationMemberRole = "owner" | "admin" | "member";
+
+export type FoundationMembershipStatus = "pending" | "active" | "removed";
+
+export type Foundation = {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  logoUrl: string | null;
+  state: string | null;
+  municipality: string | null;
+  rifNumber: string | null;
+  rifDocumentUrl: string | null;
+  fiscalAddress: string | null;
+  email: string | null;
+  phone: string | null;
+  whatsapp: string | null;
+  instagram: string | null;
+  facebook: string | null;
+  mercantileRegistry: string | null;
+  mercantileRegistryDocumentUrl: string | null;
+  inviteCode: string | null;
+  status: "active" | "suspended";
+  createdByUserId: string;
+  createdAt: string;
+  updatedAt: string;
+  memberCount: number | null;
+  myRole: FoundationMemberRole | null;
+  myCanPublish: boolean;
+  myMembershipStatus: FoundationMembershipStatus | null;
+};
+
+export type FoundationMember = {
+  id: string;
+  foundationId: string;
+  userId: string;
+  role: FoundationMemberRole;
+  status: FoundationMembershipStatus;
+  canPublish: boolean;
+  fullName: string | null;
+  profilePhotoUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type FoundationInput = {
+  name: string;
+  description?: string;
+  state?: string;
+  municipality?: string;
+  rifNumber?: string;
+  fiscalAddress?: string;
+  email?: string;
+  phone?: string;
+  whatsapp?: string;
+  instagram?: string;
+  facebook?: string;
+  mercantileRegistry?: string;
+};
+
+export async function getMyFoundations() {
+  return apiFetch<Foundation[]>("/foundations/mine");
+}
+
+export async function getPublishableFoundations() {
+  return apiFetch<Foundation[]>("/foundations/publishable");
+}
+
+export async function getFoundationBySlug(slug: string) {
+  return apiFetch<Foundation>(
+    `/foundations/by-slug/${encodeURIComponent(slug)}`,
+  );
+}
+
+export async function joinFoundation(input: {
+  foundationId?: string;
+  inviteCode?: string;
+}) {
+  return apiFetch<FoundationMember>("/foundations/join", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function getFoundationMembers(foundationId: string) {
+  return apiFetch<FoundationMember[]>(`/foundations/${foundationId}/members`);
+}
+
+export async function rotateFoundationInviteCode(foundationId: string) {
+  return apiFetch<Foundation>(
+    `/foundations/${foundationId}/invite-code/rotate`,
+    { method: "POST" },
+  );
+}
+
+export async function updateFoundationMember(
+  foundationId: string,
+  memberId: string,
+  input: {
+    status?: "active" | "rejected" | "removed";
+    role?: "admin" | "member";
+    canPublish?: boolean;
+  },
+) {
+  return apiFetch<FoundationMember>(
+    `/foundations/${foundationId}/members/${memberId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    },
+  );
+}
+
+export async function getPetsByFoundation(foundationId: string) {
+  return apiFetch<Pet[]>(`/pets/by-foundation/${foundationId}`);
+}
+
+export async function createFoundation(input: FoundationInput) {
+  return apiFetch<Foundation>("/foundations", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+/** Crea fundación mínima al registrarse (sin RIF; se completa después). */
+export async function bootstrapFoundation(input: {
+  name: string;
+  phone?: string;
+}) {
+  return apiFetch<Foundation>("/foundations/bootstrap", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export type FoundationPanel = {
+  foundation: Foundation;
+  kpis: {
+    petsPublished: number;
+    petsClosed: number;
+    petsTotal: number;
+    pendingAdoptionRequests: number;
+    membersActive: number;
+    membersPending: number;
+  };
+  pets: Array<{
+    id: string;
+    name: string;
+    species: string;
+    status: PetStatus;
+    caseKind: string;
+    photoUrl: string | null;
+    createdAt: string;
+    ownerId: string;
+  }>;
+};
+
+export async function getFoundationPanel(foundationId: string) {
+  return apiFetch<FoundationPanel>(`/foundations/${foundationId}/panel`);
+}
+
+export async function bulkFoundationPetStatus(
+  foundationId: string,
+  petIds: string[],
+  status: "published" | "closed",
+) {
+  return apiFetch<{
+    ok: boolean;
+    updated: number;
+    status: PetStatus;
+    petIds: string[];
+  }>(`/foundations/${foundationId}/pets/bulk-status`, {
+    method: "POST",
+    body: JSON.stringify({ petIds, status }),
+  });
+}
+
+export async function updateFoundation(
+  id: string,
+  input: Partial<FoundationInput> & { slug?: string },
+) {
+  return apiFetch<Foundation>(`/foundations/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function uploadFoundationLogo(id: string, file: File) {
+  const form = new FormData();
+  form.append("file", file);
+  return apiFetch<Foundation>(`/foundations/${id}/logo`, {
+    method: "POST",
+    body: form,
+  });
+}
+
+export async function uploadFoundationRifDocument(id: string, file: File) {
+  const form = new FormData();
+  form.append("file", file);
+  return apiFetch<Foundation>(`/foundations/${id}/rif-document`, {
+    method: "POST",
+    body: form,
+  });
+}
+
+export async function uploadFoundationMercantileDocument(
+  id: string,
+  file: File,
+) {
+  const form = new FormData();
+  form.append("file", file);
+  return apiFetch<Foundation>(`/foundations/${id}/mercantile-document`, {
+    method: "POST",
+    body: form,
   });
 }
 

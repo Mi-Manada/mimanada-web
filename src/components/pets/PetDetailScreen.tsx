@@ -35,7 +35,7 @@ import {
   formatPetSize,
   formatPetSpecies,
 } from "@/lib/pet-labels";
-import { petPath, userPath } from "@/lib/seo-urls";
+import { foundationPath, petPath, userPath } from "@/lib/seo-urls";
 
 function HealthItem({
   label,
@@ -652,17 +652,36 @@ export function PetDetailScreen({
 
                   <div className="mt-7 flex items-center gap-3">
                     <Link
-                      href={userPath(
-                        {
-                          id: pet.ownerId,
-                          fullName: owner?.fullName ?? "protector",
-                        },
-                        { from: petPath(pet) },
-                      )}
+                      href={
+                        pet.foundation
+                          ? foundationPath(pet.foundation, {
+                              from: petPath(pet),
+                            })
+                          : userPath(
+                              {
+                                id: pet.ownerId,
+                                fullName: owner?.fullName ?? "protector",
+                              },
+                              { from: petPath(pet) },
+                            )
+                      }
                       className="flex min-w-0 flex-1 items-center gap-3 rounded-2xl border border-[#ececec] px-3 py-2.5 transition hover:border-[var(--color-primary)]"
                     >
                       <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#e8e8e8] text-[#888]">
-                        {ownerPhoto ? (
+                        {pet.foundation ? (
+                          mediaUrl(pet.foundation.logoUrl) ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={mediaUrl(pet.foundation.logoUrl) ?? undefined}
+                              alt={pet.foundation.name}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <span className="text-[0.7rem] [font-weight:800]">
+                              {pet.foundation.name.slice(0, 2).toUpperCase()}
+                            </span>
+                          )
+                        ) : ownerPhoto ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
                             src={ownerPhoto}
@@ -680,11 +699,15 @@ export function PetDetailScreen({
                         )}
                       </span>
                       <p className="min-w-0 text-[0.88rem] leading-snug text-[#555]">
-                        {owner?.userType === "fundacion"
+                        {pet.foundation
                           ? "Refugiado en "
-                          : "Publicado por "}
+                          : owner?.userType === "fundacion"
+                            ? "Refugiado en "
+                            : "Publicado por "}
                         <span className="[font-weight:700]">
-                          {owner?.fullName ?? "protector"}
+                          {pet.foundation?.name ??
+                            owner?.fullName ??
+                            "protector"}
                         </span>
                       </p>
                     </Link>

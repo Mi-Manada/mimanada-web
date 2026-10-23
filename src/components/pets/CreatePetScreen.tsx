@@ -31,9 +31,11 @@ import {
   getMe,
   getMyPets,
   getPet,
+  getPublishableFoundations,
   mediaUrl,
   updatePet,
   type AuthUser,
+  type Foundation,
   type PetCaseKind,
   type PetSex,
   type PetSize,
@@ -245,6 +247,10 @@ export function CreatePetScreen({
   const [lockedSpecies, setLockedSpecies] = useState<PetSpecies | null>(null);
   const [editCaseKind, setEditCaseKind] = useState<PetCaseKind | null>(null);
   const [editBackHref, setEditBackHref] = useState(backHrefProp ?? "/adopta");
+  const [foundationId, setFoundationId] = useState("");
+  const [publishableFoundations, setPublishableFoundations] = useState<
+    Foundation[]
+  >([]);
 
   const venezuelaCities = useMemo(() => getVenezuelaCities(), []);
   const municipalityOptions = useMemo(
@@ -288,6 +294,13 @@ export function CreatePetScreen({
         if (cancelled) return;
         setUser(me);
 
+        try {
+          const pubs = await getPublishableFoundations();
+          if (!cancelled) setPublishableFoundations(pubs);
+        } catch {
+          if (!cancelled) setPublishableFoundations([]);
+        }
+
         if (isEdit && editPetId) {
           const pet = await getPet(editPetId);
           if (cancelled) return;
@@ -299,6 +312,7 @@ export function CreatePetScreen({
           }
           setEditCaseKind(pet.caseKind);
           setEditBackHref(backHrefProp || petPath(pet));
+          setFoundationId(pet.foundationId ?? "");
           setName(pet.name);
           if (pet.ageUnknown) {
             setAgeUnknown(true);
@@ -849,6 +863,7 @@ export function CreatePetScreen({
           diseases: diseases.trim() || undefined,
           caseKind: "litter",
           litterGroupId: publishedLitterGroupId,
+          foundationId: foundationId || undefined,
           photos: photoFiles,
           medicalExams: medicalExamFiles,
         });
@@ -874,6 +889,7 @@ export function CreatePetScreen({
         description: description.trim() || undefined,
         diseases: diseases.trim() || undefined,
         caseKind: "isolated",
+        foundationId: foundationId || undefined,
         photos: photoFiles,
         medicalExams: medicalExamFiles,
       });
@@ -1419,6 +1435,30 @@ export function CreatePetScreen({
                 />
               </label>
             </Section>
+            {!isLitter && publishableFoundations.length > 0 ? (
+              <Section
+                title="Publicar como"
+                hint="Cuenta personal o una fundación donde puedas publicar."
+              >
+                <label className="block">
+                  <FieldLabel>Cuenta</FieldLabel>
+                  <select
+                    value={foundationId}
+                    onChange={(e) => setFoundationId(e.target.value)}
+                    disabled={isEdit}
+                    className="h-11 w-full cursor-pointer rounded-[10px] border border-[#e8e8e8] bg-[#fafafa] px-3.5 text-[0.95rem] outline-none focus:border-[var(--color-primary)] focus:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <option value="">Mi cuenta personal</option>
+                    {publishableFoundations.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </Section>
+            ) : null}
+
             <Section
               title="Contacto y ubicación"
               hint="Así podrán contactarte por este caso."

@@ -9,7 +9,12 @@ import { Button } from "@/components/ui/Button";
 import { PasswordField } from "@/components/ui/PasswordField";
 import { SelectField, type SelectOption } from "@/components/ui/SelectField";
 import { TextField } from "@/components/ui/TextField";
-import { ApiError, registerRequest, setSession } from "@/lib/api";
+import {
+  ApiError,
+  bootstrapFoundation,
+  registerRequest,
+  setSession,
+} from "@/lib/api";
 
 function IconPerson() {
   return (
@@ -110,6 +115,17 @@ export function RegisterScreen() {
 
       setSession(result.accessToken);
 
+      if (result.createFoundation || userType === "fundacion") {
+        const foundation = await bootstrapFoundation({
+          name: fullName.trim(),
+          phone: phone || undefined,
+        });
+        sessionStorage.setItem(
+          "mimanada.registerFoundationId",
+          foundation.id,
+        );
+      }
+
       const firstName = fullName.trim().split(/\s+/)[0] || "amigo";
       sessionStorage.setItem("mimanada.registerName", firstName);
       setSuccessOpen(true);
@@ -126,6 +142,15 @@ export function RegisterScreen() {
 
   function handleCloseSuccess() {
     setSuccessOpen(false);
+    const foundationId =
+      typeof window !== "undefined"
+        ? sessionStorage.getItem("mimanada.registerFoundationId")
+        : null;
+    if (foundationId) {
+      sessionStorage.removeItem("mimanada.registerFoundationId");
+      router.push(`/perfil/fundaciones/${foundationId}/editar`);
+      return;
+    }
     router.push("/registro/activar");
   }
 
@@ -156,7 +181,11 @@ export function RegisterScreen() {
           <TextField
             name="fullName"
             autoComplete="name"
-            placeholder="Nombre completo"
+            placeholder={
+              userType === "fundacion"
+                ? "Nombre de la fundación"
+                : "Nombre completo"
+            }
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
             variant="outlined"

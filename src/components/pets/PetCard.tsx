@@ -177,6 +177,11 @@ export function PetCard({
               </svg>
               <span className="truncate">{location}</span>
             </p>
+            {pet.foundation ? (
+              <p className="mt-1 truncate text-[0.75rem] text-[var(--color-primary)] [font-weight:700]">
+                {pet.foundation.name}
+              </p>
+            ) : null}
           </div>
           <SexBadge sex={pet.sex} />
         </div>

@@ -10,6 +10,7 @@ import {
   ApiError,
   getMyFoundations,
   getToken,
+  joinFoundation,
   mediaUrl,
   type Foundation,
 } from "@/lib/api";
@@ -32,6 +33,9 @@ export function MyFoundationsScreen() {
   const [items, setItems] = useState<Foundation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
+  const [joining, setJoining] = useState(false);
+  const [joinMsg, setJoinMsg] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -60,6 +64,34 @@ export function MyFoundationsScreen() {
     };
   }, []);
 
+  async function onJoinWithCode() {
+    const code = inviteCode.trim().toUpperCase();
+    if (code.length < 4) {
+      setJoinMsg("Escribe el código de invitación.");
+      return;
+    }
+    setJoining(true);
+    setJoinMsg("");
+    setError("");
+    try {
+      await joinFoundation({ inviteCode: code });
+      setInviteCode("");
+      setJoinMsg(
+        "Solicitud enviada. Un admin de la fundación debe aceptarte.",
+      );
+      const rows = await getMyFoundations();
+      setItems(rows);
+    } catch (err) {
+      setJoinMsg(
+        err instanceof ApiError
+          ? err.message
+          : "No se pudo unir con ese código.",
+      );
+    } finally {
+      setJoining(false);
+    }
+  }
+
   return (
     <ProfilePageShell
       title="Mis fundaciones"
@@ -72,6 +104,38 @@ export function MyFoundationsScreen() {
         </Link>
       }
     >
+      <div className="mb-4 rounded-[14px] border border-[#ececec] bg-white p-4">
+        <p className="text-[0.72rem] uppercase tracking-[0.1em] text-[#999] [font-weight:800]">
+          Unirme con código
+        </p>
+        <p className="mt-1 text-[0.8rem] text-[#888]">
+          Pega el código que te compartió la fundación (ej. S2BGWQJH).
+        </p>
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+          <input
+            value={inviteCode}
+            onChange={(e) =>
+              setInviteCode(e.target.value.toUpperCase().slice(0, 16))
+            }
+            placeholder="Código de invitación"
+            className="h-11 flex-1 rounded-[12px] border border-[#e8e8e8] bg-[#fafafa] px-3.5 font-mono text-[0.95rem] tracking-wider outline-none focus:border-[var(--color-primary)] focus:bg-white"
+          />
+          <button
+            type="button"
+            disabled={joining}
+            onClick={() => void onJoinWithCode()}
+            className="h-11 shrink-0 rounded-full bg-[var(--color-primary)] px-5 text-[0.85rem] text-white [font-weight:800] disabled:opacity-60"
+          >
+            {joining ? "Enviando…" : "Solicitar unirme"}
+          </button>
+        </div>
+        {joinMsg ? (
+          <p className="mt-2 text-[0.8rem] text-[var(--color-primary)] [font-weight:600]">
+            {joinMsg}
+          </p>
+        ) : null}
+      </div>
+
       {loading ? (
         <p className="text-[0.9rem] text-[var(--color-text-muted)]">
           Cargando...

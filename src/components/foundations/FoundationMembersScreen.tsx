@@ -142,6 +142,12 @@ export function FoundationMembersScreen({
           <p className="mt-2 font-mono text-[1.1rem] tracking-wider text-[#333] [font-weight:800]">
             {foundation.inviteCode ?? "—"}
           </p>
+          <p className="mt-2 text-[0.78rem] leading-snug text-[#888]">
+            Comparte el <span className="[font-weight:700]">enlace</span> o el
+            código. La otra persona entra en{" "}
+            <span className="[font-weight:700]">Mis fundaciones</span>, lo pega
+            en “Unirme con código” y espera tu aprobación.
+          </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <button
               type="button"
